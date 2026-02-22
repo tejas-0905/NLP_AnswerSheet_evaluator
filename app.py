@@ -17,7 +17,7 @@ def load_nlp():
     nltk.download('punkt')
     return SentenceTransformer('all-MiniLM-L6-v2')
 
-model = load_nlp()
+model = load_nlp()  
 
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
