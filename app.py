@@ -47,7 +47,7 @@ def sentence_similarity(sent1, sent2):
 
 # ------------------ STREAMLIT UI ------------------
 
-st.title("🧠 AI Answer Sheet Evaluator")
+st.title("🤖 AI Answer Sheet Evaluator")
 
 st.write("Upload or paste **Model Answer** and **Student Answer** to evaluate automatically.")
 
@@ -97,10 +97,10 @@ if st.button("✅ Evaluate"):
                 extra_sents.append(ss)
 
         # ---------------- RESULTS ----------------
-        st.subheader("📊 Results")
+        st.subheader("📉 Results")
         st.write(f"**TF-IDF Similarity:** {round(sim_score,2)}")
         st.write(f"**Semantic Similarity:** {round(semantic_sim,2)}")
-        st.success(f"🎯 **Final Marks:** {marks} / {max_marks}")
+        st.success(f"📑 **Final Marks:** {marks} / {max_marks}")
 
         # ---------------- GRAPH ----------------
         st.subheader("📈 Accuracy Graph")
@@ -143,3 +143,4 @@ if st.button("✅ Evaluate"):
 
     else:
         st.warning("⚠️ Please enter both Model Answer and Student Answer.")
+        
