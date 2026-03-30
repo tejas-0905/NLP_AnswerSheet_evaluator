@@ -62,13 +62,33 @@ def extract_keywords(text, top_n=10):
 
     return [w for w, s in keywords[:top_n]]
 
-def sentence_similarity(sent1, sent2):
-    emb = model.encode([sent1, sent2])
-    return cosine_similarity([emb[0]], [emb[1]])[0][0]
+# ---------------- FAST SEMANTIC KEYWORD MATCH ----------------
 
-# ------------------ STREAMLIT UI ------------------
+def semantic_keyword_match(keywords, student_text):
+    student_tokens = student_text.split()
 
-st.title("🧠 AI Answer Sheet Evaluator")
+    # Batch embeddings
+    kw_embs = model.encode(keywords)
+    student_embs = model.encode(student_tokens)
+
+    sim_matrix = cosine_similarity(kw_embs, student_embs)
+
+    covered = []
+    missing = []
+
+    for i, kw in enumerate(keywords):
+        if np.max(sim_matrix[i]) > 0.6:
+            covered.append(kw)
+        else:
+            missing.append(kw)
+
+    return covered, missing
+
+# ---------------- UI ----------------
+
+st.set_page_config(layout="wide")
+
+st.title("🧠 NLP Based Answer Sheet Evaluator")
 
 st.sidebar.header("Evaluation Settings")
 
@@ -176,10 +196,17 @@ if st.button("Evaluate Answer"):
         marks = round(final_score * max_marks, 2)
 
         # ---------------- RESULTS ----------------
-        st.subheader("📊 Results")
-        st.write(f"**TF-IDF Similarity:** {round(sim_score,2)}")
-        st.write(f"**Semantic Similarity:** {round(semantic_sim,2)}")
-        st.success(f"🎯 **Final Marks:** {marks} / {max_marks}")
+
+        st.subheader("Evaluation Results")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric("Semantic", round(semantic_score, 2))
+        col2.metric("Keyword", round(keyword_score, 2))
+        col3.metric("Sentence", round(sentence_score, 2))
+        col4.metric("Length", round(length_score, 2))
+
+        st.success(f"Final Marks: {marks:.1f} / {max_marks}")
 
         # Graph
         scores = {
@@ -217,20 +244,7 @@ if st.button("Evaluate Answer"):
         col1.metric("Model Words", model_words)
         col2.metric("Student Words", student_words)
 
-        # WordCloud
-        st.subheader("Word Cloud")
-
-        wc = WordCloud(
-            width=800,
-            height=400,
-            background_color="black"
-        ).generate(clean_student)
-
-        fig_wc, ax_wc = plt.subplots()
-        ax_wc.imshow(wc)
-        ax_wc.axis("off")
-
-        st.pyplot(fig_wc)
+       
 
     else:
-        st.warning("⚠️ Please enter both Model Answer and Student Answer.")
+        st.warning("Please enter both answers")
