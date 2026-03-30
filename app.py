@@ -12,8 +12,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from sentence_transformers import SentenceTransformer
 
-from wordcloud import WordCloud
-
 # ---------------- MODEL LOADING ----------------
 
 @st.cache_resource
@@ -21,7 +19,6 @@ def load_nlp():
     nltk.download('stopwords')
     nltk.download('wordnet')
     nltk.download('punkt')
-    nltk.download('punkt_tab') 
     return SentenceTransformer('all-MiniLM-L6-v2')
 
 model = load_nlp()
@@ -62,13 +59,23 @@ def extract_keywords(text, top_n=10):
 
     return [w for w, s in keywords[:top_n]]
 
-def sentence_similarity(sent1, sent2):
-    emb = model.encode([sent1, sent2])
-    return cosine_similarity([emb[0]], [emb[1]])[0][0]
+
+def semantic_keyword_match(keywords, student_text):
+    covered = []
+    missing = []
+
+    for kw in keywords:
+        if kw in student_text:
+            covered.append(kw)
+        else:
+            missing.append(kw)
+
+    return covered, missing
+
 
 # ------------------ STREAMLIT UI ------------------
 
-st.title("🧠 AI Answer Sheet Evaluator")
+st.title("AI Answer Sheet Evaluator")
 
 st.sidebar.header("Evaluation Settings")
 
@@ -78,7 +85,6 @@ max_marks = st.sidebar.number_input(
     min_value=1
 )
 
-# Optional: dynamic weights
 semantic_w = st.sidebar.slider("Semantic Weight", 0.0, 1.0, 0.4)
 keyword_w = st.sidebar.slider("Keyword Weight", 0.0, 1.0, 0.3)
 sentence_w = st.sidebar.slider("Sentence Weight", 0.0, 1.0, 0.2)
@@ -96,10 +102,10 @@ length_w /= total_w
 col1, col2 = st.columns(2)
 
 with col1:
-    model_answer = st.text_area("📘 Model Answer", height=250)
+    model_answer = st.text_area("Model Answer", height=250)
 
 with col2:
-    student_answer = st.text_area("📝 Student Answer", height=250)
+    student_answer = st.text_area("Student Answer", height=250)
 
 # ---------------- EVALUATION ----------------
 
@@ -118,7 +124,7 @@ if st.button("Evaluate Answer"):
             tfidf[0:1], tfidf[1:2]
         )[0][0]
 
-        # Semantic similarity (FAST)
+        # Semantic similarity
         emb = model.encode([model_answer, student_answer])
 
         semantic_score = cosine_similarity(
@@ -146,12 +152,15 @@ if st.button("Evaluate Answer"):
         missing_sents = []
         extra_sents = []
 
+        # FIXED THRESHOLD
+        threshold = 0.75
+
         for i, ms in enumerate(model_sents):
-            if max(sim_matrix[i]) < 0.6:
+            if max(sim_matrix[i]) < threshold:
                 missing_sents.append(ms)
 
         for j, ss in enumerate(student_sents):
-            if max(sim_matrix[:, j]) < 0.6:
+            if max(sim_matrix[:, j]) < threshold:
                 extra_sents.append(ss)
 
         sentence_score = 1 - (
@@ -176,10 +185,10 @@ if st.button("Evaluate Answer"):
         marks = round(final_score * max_marks, 2)
 
         # ---------------- RESULTS ----------------
-        st.subheader("📊 Results")
-        st.write(f"**TF-IDF Similarity:** {round(sim_score,2)}")
-        st.write(f"**Semantic Similarity:** {round(semantic_sim,2)}")
-        st.success(f"🎯 **Final Marks:** {marks} / {max_marks}")
+        st.subheader("Results")
+        st.write(f"TF-IDF Similarity: {round(tfidf_score,2)}")
+        st.write(f"Semantic Similarity: {round(semantic_score,2)}")
+        st.success(f"Final Marks: {marks} / {max_marks}")
 
         # Graph
         scores = {
@@ -203,12 +212,18 @@ if st.button("Evaluate Answer"):
 
         # Sentence feedback
         st.subheader("Missing Points")
-        for m in missing_sents:
-            st.write("•", m)
+        if missing_sents:
+            for m in missing_sents:
+                st.write("•", m)
+        else:
+            st.write("No missing points")
 
         st.subheader("Extra / Irrelevant Points")
-        for e in extra_sents:
-            st.write("•", e)
+        if extra_sents:
+            for e in extra_sents:
+                st.write("•", e)
+        else:
+            st.write("No extra points")
 
         # Word stats
         st.subheader("Word Statistics")
@@ -217,20 +232,5 @@ if st.button("Evaluate Answer"):
         col1.metric("Model Words", model_words)
         col2.metric("Student Words", student_words)
 
-        # WordCloud
-        st.subheader("Word Cloud")
-
-        wc = WordCloud(
-            width=800,
-            height=400,
-            background_color="black"
-        ).generate(clean_student)
-
-        fig_wc, ax_wc = plt.subplots()
-        ax_wc.imshow(wc)
-        ax_wc.axis("off")
-
-        st.pyplot(fig_wc)
-
     else:
-        st.warning("⚠️ Please enter both Model Answer and Student Answer.")
+        st.warning("Please enter both Model Answer and Student Answer.")
