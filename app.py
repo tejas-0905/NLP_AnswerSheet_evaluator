@@ -188,7 +188,7 @@ if st.button("Evaluate Answer"):
         st.subheader("Results")
         st.write(f"TF-IDF Similarity: {round(tfidf_score,2)}")
         st.write(f"Semantic Similarity: {round(semantic_score,2)}")
-        st.success(f"Final Marks: {marks} / {max_marks}")
+        st.success(f"Final Marks: {marks:.2f} / {max_marks}")
 
         # Graph
         scores = {
