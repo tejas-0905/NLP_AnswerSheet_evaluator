@@ -1,138 +1,94 @@
-#  AI Answer Sheet Evaluator
+# AI Answer Sheet Evaluator
 
-An intelligent **AI-powered answer evaluation system** built using **Streamlit, NLP, and Sentence Transformers**. This application automatically evaluates student answers by comparing them with a model answer using multiple scoring techniques like semantic similarity, keyword matching, sentence coverage, and length analysis.
+An NLP-powered answer evaluation app built with Streamlit and Sentence Transformers. It compares student answers with model answers and produces marks, concept coverage, missing points, weakly related points, and downloadable batch reports.
 
----
+## Features
 
-##  Features
+- Teacher-facing Streamlit dashboard
+- Single-answer evaluation
+- Multi-answer paper evaluation with total marks and question-wise feedback
+- Required student information before full-paper evaluation
+- Batch CSV evaluation
+- Downloadable evaluated report
+- Rubric-style scoring weights
+- Rubric presets for balanced, concept-heavy, keyword-heavy, and descriptive answers
+- Built-in sample questions for quick testing
+- Manual required concepts for teacher-defined marking schemes
+- Semantic similarity using `all-MiniLM-L6-v2`
+- TF-IDF similarity for lexical overlap
+- Keyword and concept coverage
+- Abbreviation matching, such as `OOP` and `Object oriented programming`
+- Sentence-level missing/extra point detection
+- Length and quality warnings
+- Improvement suggestions for students
+- Copy-risk signal based on lexical overlap and answer length similarity
+- Recent evaluation history during the current session
+- Modular evaluator code for easier testing and extension
 
-- ✅ Semantic Similarity Analysis using transformer models  
-- ✅ TF-IDF Based Text Similarity  
-- ✅ Keyword Extraction & Matching  
-- ✅ Sentence-Level Comparison (Missing & Extra Points Detection)  
-- ✅ Dynamic Scoring System with Adjustable Weights  
-- ✅ Visual Performance Graphs  
-- ✅ Detailed Feedback for Students  
+## Project Structure
 
----
+```text
+.
+|-- app.py              # Streamlit frontend
+|-- evaluator.py        # Scoring and feedback logic
+|-- preprocessing.py    # Text cleaning and tokenization helpers
+|-- requirements.txt
+`-- README.md
+```
 
-##  Tech Stack
-
-- **Frontend/UI**: Streamlit  
-- **NLP**: NLTK  
-- **Vectorization**: TF-IDF (Scikit-learn)  
-- **Semantic Embeddings**: Sentence Transformers (`all-MiniLM-L6-v2`)  
-- **Visualization**: Matplotlib  
-
-
----
-
-##  Installation
-
-### 1. Clone the repository
+## Installation
 
 ```bash
-git clone https://github.com/your-username/ai-answer-evaluator.git
-cd ai-answer-evaluator
-```
-### 2. Install dependencies
-
-``` bash
 pip install -r requirements.txt
 ```
 
-### 3. Run the application
+## Run
 
 ```bash
 streamlit run app.py
 ```
-## 🚀 Extended Features
 
-- 🧠 **Context-Aware Semantic Evaluation**  
-  Uses transformer-based embeddings to understand meaning beyond exact word matches.
+The first run may take time because the Sentence Transformer model is downloaded and cached.
 
-- ⚖️ **Customizable Evaluation Weights**  
-  Adjust importance of semantic, keyword, sentence, and length scores dynamically.
+## Batch CSV Format
 
-- 🔍 **Advanced Keyword Extraction (Unigrams + Bigrams)**  
-  Captures both single words and meaningful phrases for better evaluation.
+The batch evaluator requires these columns:
 
-- 📊 **Real-Time Performance Visualization**  
-  Displays score breakdown using bar charts for quick interpretation.
+```csv
+student_name,question,model_answer,student_answer,max_marks,required_concepts
+```
 
-- 🧾 **Detailed Answer Feedback System**  
-  Highlights:
-  - Missing key points  
-  - Extra/irrelevant content  
-  - Covered concepts  
+Only `model_answer` and `student_answer` are strictly required. If `max_marks` is missing, the sidebar value is used. `required_concepts` is optional and can contain comma-separated concepts such as `OOP, classes, objects, inheritance`.
 
-- ✂️ **Text Preprocessing Pipeline**  
-  Includes cleaning, tokenization, stopword removal, and lemmatization.
+## Multi Answer Paper
 
-- 🧮 **Multi-Metric Scoring Engine**  
-  Combines:
-  - TF-IDF similarity  
-  - Semantic similarity  
-  - Keyword coverage  
-  - Sentence alignment  
-  - Length analysis  
+Use the Multi Answer Paper tab when one student has multiple descriptive answers. The app evaluates each question separately, then shows:
 
-- 📏 **Answer Length Normalization**  
-  Prevents unfair scoring for overly long or short answers.
+- student name, roll number, class/section, subject, exam name, and evaluator
+- total marks
+- overall percentage
+- overall grade band
+- question-wise marks table
+- question-wise improvement suggestions
+- downloadable marks CSV
+- downloadable overall feedback report
 
-- 🧠 **Sentence-Level Semantic Matching**  
-  Compares each sentence to detect conceptual gaps.
+Required fields before evaluation:
 
-- 🚫 **Irrelevant Content Detection**  
-  Identifies sentences in student answers that don’t align with the model answer.
+- Student name
+- Roll number
+- Class / Section
+- Subject
 
-- ⚡ **Fast Inference with Lightweight Transformer Model**  
-  Uses `all-MiniLM-L6-v2` for efficient and quick evaluation.
+These details are included in the downloaded marks CSV and feedback report.
 
-- 💾 **Caching for Performance Optimization**  
-  Reduces model loading time using Streamlit caching.
+## Scoring Criteria
 
-- 🖥️ **Interactive UI with Streamlit**  
-  Clean and simple interface for easy usage.
+The final score combines:
 
-- 📈 **Scalable Evaluation Framework**  
-  Can be extended for:
-  - Exams  
-  - Assignments  
-  - Online assessments  
+- Concept accuracy: semantic similarity between the model answer and student answer
+- Keyword coverage: important concepts from the model answer found in the student answer
+- Point coverage: sentence-level match against expected answer points
+- Answer length: rewards sufficient length while mildly penalizing overly long answers
 
-- 🔄 **Modular Code Design**  
-  Easy to modify or extend individual components like scoring or preprocessing.
-
-- 🌐 **Ready for Integration**  
-  Can be integrated with:
-  - Learning Management Systems (LMS)  
-  - EdTech platforms  
-
-- 🧪 **Supports Experimental NLP Enhancements**  
-  Easy to plug in:
-  - BERT / GPT models  
-  - Grammar checkers  
-  - Topic modeling  
-
-- 📚 **Automatic Keyword-Based Rubric Generation** *(Extendable)*  
-  Can serve as a base for automated marking schemes.
-
-- 🧑‍🏫 **Teacher Assistance Tool**  
-  Helps reduce manual grading effort and ensures consistency.
-
-- 🎯 **Objective and Consistent Evaluation**  
-  Eliminates human bias in answer checking.
-
-- 🔐 **Local Processing Capability**  
-  Runs locally without requiring external APIs after setup.
-
-- 🧩 **Flexible Input Handling**  
-  Works with descriptive answers across multiple domains.
-
-
-
-
-
-
-
+Teachers can adjust the weights from the sidebar.

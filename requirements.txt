@@ -1,6 +1,6 @@
 streamlit
 nltk
 numpy
+pandas
 scikit-learn
 sentence-transformers
-matplotlib
