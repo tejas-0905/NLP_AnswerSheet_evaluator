@@ -9,7 +9,7 @@ import streamlit as st
 from sklearn.feature_extraction.text import HashingVectorizer
 from sentence_transformers import SentenceTransformer
 
-from evaluator import DEFAULT_WEIGHTS, evaluate_answer, grade_band, parse_required_concepts
+from backend.evaluator import DEFAULT_WEIGHTS, evaluate_answer, grade_band, parse_required_concepts
 
 
 st.set_page_config(

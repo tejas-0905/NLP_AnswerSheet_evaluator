@@ -29,7 +29,8 @@ An NLP-powered answer evaluation app built with Streamlit and Sentence Transform
 
 ```text
 .
-|-- app.py              # Streamlit frontend
+|-- main.py             # Streamlit evaluator app
+|-- api/                # FastAPI auth API
 |-- evaluator.py        # Scoring and feedback logic
 |-- preprocessing.py    # Text cleaning and tokenization helpers
 |-- requirements.txt
@@ -44,8 +45,24 @@ pip install -r requirements.txt
 
 ## Run
 
+From the project root, run the Streamlit evaluator:
+
 ```bash
-streamlit run app.py
+streamlit run backend/main.py
+```
+
+From the `backend` folder, run the FastAPI auth API:
+
+```bash
+cd backend
+uvicorn api.main:app --reload
+```
+
+From the `frontend` folder, run the React app:
+
+```bash
+cd frontend
+npm run dev
 ```
 
 The first run may take time because the Sentence Transformer model is downloaded and cached.
@@ -74,7 +91,6 @@ Use the Multi Answer Paper tab when one student has multiple descriptive answers
 - downloadable overall feedback report
 
 Required fields before evaluation:
-
 - Student name
 - Roll number
 - Class / Section
