@@ -1,5 +1,8 @@
 import io
+import os
 from datetime import datetime
+
+os.environ.setdefault("USE_TF", "0")
 
 import pandas as pd
 import streamlit as st
