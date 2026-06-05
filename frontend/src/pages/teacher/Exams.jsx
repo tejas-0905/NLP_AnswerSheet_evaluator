@@ -29,12 +29,17 @@ export default function Exams() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!selectedClass) return;
+  const loadExams = (classroomId) => {
     setLoadingExams(true);
-    getExamsForClass(selectedClass)
+    getExamsForClass(classroomId)
       .then((r) => setExams(r.data))
       .finally(() => setLoadingExams(false));
+  };
+
+  useEffect(() => {
+    if (!selectedClass) return;
+    const timer = setTimeout(() => loadExams(selectedClass), 0);
+    return () => clearTimeout(timer);
   }, [selectedClass]);
 
   const handleToggle = async (exam) => {

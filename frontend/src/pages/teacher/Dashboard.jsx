@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { School, BookOpen, Users, BarChart2 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import { getMyClassrooms } from "../../api/classroom";
 import StatCard from "../../components/StatCard";
 

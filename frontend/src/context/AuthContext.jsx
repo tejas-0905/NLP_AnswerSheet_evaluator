@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "./auth-context";
-export { useAuth } from "./useAuth";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {

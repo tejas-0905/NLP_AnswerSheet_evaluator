@@ -33,12 +33,17 @@ export default function Leaderboard() {
     });
   }, [selectedClass]);
 
-  useEffect(() => {
-    if (!selectedExam) return;
+  const loadLeaderboard = (examId) => {
     setLoading(true);
-    getExamResults(selectedExam)
+    getExamResults(examId)
       .then((r) => setLeaderboard(r.data))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!selectedExam) return;
+    const timer = setTimeout(() => loadLeaderboard(selectedExam), 0);
+    return () => clearTimeout(timer);
   }, [selectedExam]);
 
   const pctColor = (pct) => {
@@ -110,7 +115,6 @@ export default function Leaderboard() {
               {[1, 0, 2].map((idx) => {
                 const r = leaderboard[idx];
                 if (!r) return <div key={idx} />;
-                const rank = idx + 1;
                 const realRank = idx === 0 ? 2 : idx === 1 ? 1 : 3;
                 const m = medal(realRank);
                 return (

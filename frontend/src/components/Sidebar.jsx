@@ -1,5 +1,5 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
 import {
   LayoutDashboard, School, BookOpen,
   BarChart2, Trophy, LogOut
@@ -15,14 +15,9 @@ const links = [
 
 export default function Sidebar() {
   const { logout, user } = useAuth();
-  const navigate = useNavigate();
 
   return (
-    <aside style={{
-      width: 220, minHeight: "100vh", background: "#fff",
-      borderRight: "1px solid #e5e7eb", display: "flex",
-      flexDirection: "column", padding: "24px 0",
-    }}>
+    <aside className="teacher-sidebar">
       {/* Logo */}
       <div style={{ padding: "0 20px 28px" }}>
         <p style={{ fontWeight: 600, fontSize: 16, margin: 0, color: "#111" }}>
