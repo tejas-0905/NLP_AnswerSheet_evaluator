@@ -53,10 +53,19 @@ streamlit run backend/main.py
 
 From the `backend` folder, run the FastAPI auth API:
 
-```bash
+```powershell
 cd backend
+.\venv\Scripts\Activate.ps1
 uvicorn api.main:app --reload
 ```
+
+If PowerShell does not allow activation, run this once in PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+The React frontend defaults to `http://127.0.0.1:8000`. If you choose a different backend port, set `VITE_API_BASE_URL` in `frontend/.env`.
 
 From the `frontend` folder, run the React app:
 

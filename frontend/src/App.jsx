@@ -1,9 +1,18 @@
+import { Toaster } from "react-hot-toast";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext.jsx";
-import { useAuth } from "./context/useAuth";
-import Register from "./pages/Register";
-import VerifyOTP from "./pages/VerifyOTP";
-import Login from "./pages/Login";
+
+import { AuthProvider, useAuth } from "./context/AuthContext";
+
+import Login         from "./pages/auth/Login";
+import Register      from "./pages/auth/Register";
+import VerifyOTP     from "./pages/auth/VerifyOTP";
+import TeacherLayout from "./pages/teacher/Layout";
+import Dashboard     from "./pages/teacher/Dashboard";
+import Classrooms    from "./pages/teacher/Classrooms";
+import Exams         from "./pages/teacher/Exams";
+import CreateExam    from "./pages/teacher/CreateExam";
+import Results       from "./pages/teacher/Results";
+import Leaderboard   from "./pages/teacher/Leaderboard";
 
 function ProtectedRoute({ children, role }) {
   const { user } = useAuth();
@@ -14,22 +23,27 @@ function ProtectedRoute({ children, role }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/register"   element={<Register />} />
-      <Route path="/verify-otp" element={<VerifyOTP />} />
-      <Route path="/login"      element={<Login />} />
-      <Route path="/teacher"    element={
-        <ProtectedRoute role="teacher">
-          <h2 style={{ textAlign: "center", marginTop: 80 }}>Teacher Dashboard (coming soon)</h2>
-        </ProtectedRoute>
-      } />
-      <Route path="/student"    element={
-        <ProtectedRoute role="student">
-          <h2 style={{ textAlign: "center", marginTop: 80 }}>Student Dashboard (coming soon)</h2>
-        </ProtectedRoute>
-      } />
-      <Route path="*" element={<Navigate to="/login" />} />
-    </Routes>
+    <>
+      <Toaster position="top-right" toastOptions={{ style: { fontSize: 14 } }} />
+      <Routes>
+        <Route path="/login"      element={<Login />} />
+        <Route path="/register"   element={<Register />} />
+        <Route path="/verify-otp" element={<VerifyOTP />} />
+
+        <Route path="/teacher" element={
+          <ProtectedRoute role="teacher"><TeacherLayout /></ProtectedRoute>
+        }>
+          <Route index                      element={<Dashboard />} />
+          <Route path="classrooms"          element={<Classrooms />} />
+          <Route path="exams"               element={<Exams />} />
+          <Route path="exams/create"        element={<CreateExam />} />
+          <Route path="results/:examId"     element={<Results />} />
+          <Route path="leaderboard"         element={<Leaderboard />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </>
   );
 }
 
