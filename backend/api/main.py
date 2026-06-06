@@ -8,6 +8,7 @@ from api.routers import classroom
 from api.models import exam as exam_models
 from api.models import submission as submission_models
 from api.routers import exam 
+from api.routers import student
 
 app = FastAPI(title="Answer Sheet Evaluator API")
 
@@ -24,6 +25,7 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth.router)
 app.include_router(classroom.router) 
 app.include_router(exam.router)
+app.include_router(student.router)
 
 @app.get("/")
 def root():

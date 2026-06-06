@@ -137,6 +137,14 @@ code {
   box-sizing: border-box;
 }
 
+.student-shell {
+  width: 100%;
+}
+
+.student-main {
+  min-width: 0;
+}
+
 .auth-form input,
 .auth-form input:focus,
 .auth-form input:focus-visible {
@@ -170,6 +178,32 @@ code {
 
   .teacher-main {
     padding: 24px 16px;
+  }
+
+  .student-shell {
+    flex-direction: column !important;
+    min-height: 100svh !important;
+  }
+
+  .student-sidebar {
+    width: 100% !important;
+    flex-basis: auto !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #e8eaf6 !important;
+    padding: 16px 0 !important;
+  }
+
+  .student-main {
+    padding: 24px 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .student-main button,
+  .student-main select,
+  .student-main input,
+  .student-main textarea {
+    max-width: 100%;
   }
 }
 

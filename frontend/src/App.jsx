@@ -13,7 +13,16 @@ import Classrooms    from "./pages/teacher/Classrooms";
 import Exams         from "./pages/teacher/Exams";
 import CreateExam    from "./pages/teacher/CreateExam";
 import Results       from "./pages/teacher/Results";
+import ResultsHome   from "./pages/teacher/ResultsHome";
 import Leaderboard   from "./pages/teacher/Leaderboard";
+
+import StudentLayout  from "./pages/student/Layout";
+import StudentDash    from "./pages/student/Dashboard";
+import StudentClasses from "./pages/student/Classrooms";
+import StudentExams   from "./pages/student/Exams";
+import TakeExam       from "./pages/student/TakeExam";
+import MyResults      from "./pages/student/MyResults";
+
 
 function ProtectedRoute({ children, role }) {
   const { user } = useAuth();
@@ -38,9 +47,19 @@ function AppRoutes() {
           <Route path="classrooms"          element={<Classrooms />} />
           <Route path="exams"               element={<Exams />} />
           <Route path="exams/create"        element={<CreateExam />} />
+          <Route path="results"             element={<ResultsHome />} />
           <Route path="results/:examId"     element={<Results />} />
           <Route path="leaderboard"         element={<Leaderboard />} />
         </Route>
+        <Route path="/student" element={
+          <ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>
+        }>
+          <Route index                         element={<StudentDash />} />
+          <Route path="classrooms"             element={<StudentClasses />} />
+          <Route path="exams"                  element={<StudentExams />} />
+          <Route path="take-exam/:examId"      element={<TakeExam />} />
+          <Route path="results/:examId"        element={<MyResults />} />
+          </Route>
 
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
