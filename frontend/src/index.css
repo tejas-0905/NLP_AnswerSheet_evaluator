@@ -137,6 +137,24 @@ code {
   box-sizing: border-box;
 }
 
+.auth-form input,
+.auth-form input:focus,
+.auth-form input:focus-visible {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.auth-form input::-ms-reveal,
+.auth-form input::-ms-clear {
+  display: none;
+}
+
+.auth-form input:-webkit-autofill {
+  box-shadow: 0 0 0 1000px #fff inset !important;
+  -webkit-text-fill-color: #222;
+}
+
 @media (max-width: 760px) {
   .teacher-shell {
     flex-direction: column;
@@ -152,5 +170,76 @@ code {
 
   .teacher-main {
     padding: 24px 16px;
+  }
+}
+
+@media (max-width: 700px) {
+  .auth-page {
+    align-items: flex-start !important;
+    padding: 0 !important;
+    min-height: 100svh !important;
+    background: #fff !important;
+  }
+
+  .auth-card-inner {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 100svh !important;
+    flex-direction: column !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .auth-left-panel {
+    display: none !important;
+  }
+
+  .auth-form-panel {
+    width: 100% !important;
+    min-height: 100svh !important;
+    padding: 28px 23px 24px !important;
+    justify-content: flex-start !important;
+    box-sizing: border-box !important;
+  }
+
+  .auth-form {
+    width: 100% !important;
+  }
+
+  .auth-form > div {
+    margin-bottom: 18px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .auth-form-panel {
+    padding-inline: 18px !important;
+  }
+}
+@media (max-width: 600px) {
+  /* Auth card stacks vertically on mobile */
+  .auth-card-inner {
+    flex-direction: column !important;
+  }
+  .auth-card-inner {
+    flex-direction: column !important;
+    max-width: 100% !important;
+    border-radius: 16px !important;
+  }
+  .auth-card-inner > div:first-child {
+    min-height: 180px !important;
+    padding: 24px 24px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex: unset !important;
+  }
+  .auth-card-inner > div:first-child h1 {
+    font-size: 22px !important;
+    margin: 0 !important;
+  }
+  .auth-card-inner > div:last-child {
+    padding: 28px 24px !important;
   }
 }
