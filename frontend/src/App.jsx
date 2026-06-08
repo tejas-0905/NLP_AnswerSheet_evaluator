@@ -22,7 +22,9 @@ import StudentClasses from "./pages/student/Classrooms";
 import StudentExams   from "./pages/student/Exams";
 import TakeExam       from "./pages/student/TakeExam";
 import MyResults      from "./pages/student/MyResults";
-
+import Students       from "./pages/teacher/Students";
+import OCRReview      from "./pages/teacher/OCRReview.jsx";
+import UploadSheet    from "./pages/student/UploadSheet";
 
 function ProtectedRoute({ children, role }) {
   const { user } = useAuth();
@@ -50,6 +52,8 @@ function AppRoutes() {
           <Route path="results"             element={<ResultsHome />} />
           <Route path="results/:examId"     element={<Results />} />
           <Route path="leaderboard"         element={<Leaderboard />} />
+          <Route path="students"            element={<Students />} />
+          <Route path="ocr-review/:ocrSubmissionId" element={<OCRReview />} />
         </Route>
         <Route path="/student" element={
           <ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>
@@ -59,6 +63,7 @@ function AppRoutes() {
           <Route path="exams"                  element={<StudentExams />} />
           <Route path="take-exam/:examId"      element={<TakeExam />} />
           <Route path="results/:examId"        element={<MyResults />} />
+          <Route path="upload-sheet/:examId"   element={<UploadSheet />} />
           </Route>
 
         <Route path="*" element={<Navigate to="/login" />} />

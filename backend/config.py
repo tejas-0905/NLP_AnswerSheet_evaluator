@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     SMTP_PORT: int
     SMTP_USER: str
     SMTP_PASSWORD: str
+    OPENAI_API_KEY: str | None = None
+    OPENAI_OCR_MODEL: str = "gpt-4o-mini"
+    OCR_ENGINE: str = "ocrspace"
+    OCRSPACE_API_KEY: str | None = None
+    OCRSPACE_API_URL: str = "https://api.ocr.space/parse/image"
+    OCRSPACE_ENGINE: int = 3
+    OCRSPACE_LANGUAGE: str = "eng"
+    OCRSPACE_TIMEOUT_SECONDS: int = 60
+    TROCR_MODEL: str = "microsoft/trocr-base-handwritten"
 
     class Config:
         env_file = BASE_DIR / ".env"

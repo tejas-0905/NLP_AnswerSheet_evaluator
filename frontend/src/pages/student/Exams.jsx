@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getMyClassrooms, getExams } from "../../api/student";
-import { Clock, BookOpen, CheckCircle, ArrowRight } from "lucide-react";
+import { Clock, BookOpen, CheckCircle, Edit3, UploadCloud } from "lucide-react";
 
 const BLUE = "#4361ee";
 
@@ -100,18 +100,32 @@ export default function StudentExams() {
                   View results
                 </button>
               ) : (
-                <button
-                  onClick={() => navigate(`/student/take-exam/${exam.id}`, { state: { exam } })}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    background: BLUE, color: "#fff",
-                    border: "none", borderRadius: 8,
-                    padding: "8px 16px", cursor: "pointer",
-                    fontSize: 13, fontWeight: 600,
-                  }}
-                >
-                  Start exam <ArrowRight size={14} />
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={() => navigate(`/student/take-exam/${exam.id}`, { state: { exam } })}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      background: BLUE, color: "#fff",
+                      border: "none", borderRadius: 8,
+                      padding: "8px 14px", cursor: "pointer",
+                      fontSize: 13, fontWeight: 600,
+                    }}
+                  >
+                    <Edit3 size={14} /> Type answers
+                  </button>
+                  <button
+                    onClick={() => navigate(`/student/upload-sheet/${exam.id}`, { state: { exam } })}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      background: "#eef0fd", color: BLUE,
+                      border: "none", borderRadius: 8,
+                      padding: "8px 14px", cursor: "pointer",
+                      fontSize: 13, fontWeight: 600,
+                    }}
+                  >
+                    <UploadCloud size={14} /> Upload sheet
+                  </button>
+                </div>
               )}
             </div>
           ))}

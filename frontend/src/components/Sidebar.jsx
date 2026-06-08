@@ -2,12 +2,13 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import {
   LayoutDashboard, School, BookOpen,
-  BarChart2, Trophy, LogOut
+  BarChart2, Trophy, Users, LogOut
 } from "lucide-react";
 
 const links = [
   { to: "/teacher",              icon: LayoutDashboard, label: "Dashboard"   },
   { to: "/teacher/classrooms",   icon: School,          label: "Classrooms"  },
+  { to: "/teacher/students",     icon: Users,           label: "Students"    },
   { to: "/teacher/exams",        icon: BookOpen,        label: "Exams"       },
   { to: "/teacher/results",      icon: BarChart2,       label: "Results"     },
   { to: "/teacher/leaderboard",  icon: Trophy,          label: "Leaderboard" },

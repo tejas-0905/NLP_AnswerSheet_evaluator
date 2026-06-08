@@ -1,4 +1,5 @@
 import numpy as np
+from difflib import SequenceMatcher
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -117,13 +118,45 @@ def acronym_match(keyword, student_text):
     return False
 
 
+def fuzzy_token_match(keyword, student_text, threshold=0.78):
+    clean_keyword = preprocess(keyword)
+    clean_student = preprocess(student_text)
+
+    if not clean_keyword or not clean_student:
+        return False
+
+    keyword_tokens = clean_keyword.split()
+    student_tokens = clean_student.split()
+    if not keyword_tokens or not student_tokens:
+        return False
+
+    if len(keyword_tokens) == 1:
+        target = keyword_tokens[0]
+        if len(target) < 5:
+            return False
+        return any(
+            SequenceMatcher(None, target, token).ratio() >= threshold
+            for token in student_tokens
+            if abs(len(target) - len(token)) <= max(3, len(target) // 3)
+        )
+
+    phrase_len = len(keyword_tokens)
+    target_phrase = " ".join(keyword_tokens)
+    for start in range(0, len(student_tokens) - phrase_len + 1):
+        candidate = " ".join(student_tokens[start:start + phrase_len])
+        if SequenceMatcher(None, target_phrase, candidate).ratio() >= threshold:
+            return True
+
+    return False
+
+
 def concept_is_covered(concept, student_text, model, threshold=0.62):
     clean_student = preprocess(student_text)
     clean_concept = preprocess(concept)
 
     if not clean_concept:
         return False
-    if clean_concept in clean_student or acronym_match(clean_concept, student_text):
+    if clean_concept in clean_student or acronym_match(clean_concept, student_text) or fuzzy_token_match(clean_concept, student_text):
         return True
 
     concept_embedding = model.encode([clean_concept])
@@ -145,7 +178,7 @@ def semantic_keyword_match(keywords, student_text, model, threshold=0.62):
     similarities = cosine_similarity(keyword_embeddings, student_embedding).flatten()
 
     for keyword, similarity in zip(keywords, similarities):
-        if keyword in clean_student or acronym_match(keyword, student_text) or similarity >= threshold:
+        if keyword in clean_student or acronym_match(keyword, student_text) or fuzzy_token_match(keyword, student_text) or similarity >= threshold:
             covered.append(keyword)
         else:
             missing.append(keyword)

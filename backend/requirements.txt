@@ -32,6 +32,7 @@ dnspython==2.8.0
 docstring_parser==0.17.0
 ecdsa==0.19.2
 email-validator==2.3.0
+easyocr==1.7.2
 faiss-cpu==1.13.2
 fastapi==0.115.6
 filelock==3.29.0
@@ -87,7 +88,7 @@ narwhals==1.46.0
 networkx==3.5
 nltk==3.9.2
 numpy==2.2.6
-openai==2.13.0
+openai==2.41.0
 opencv-contrib-python==4.12.0.88
 opencv-python==4.12.0.88
 opt_einsum==3.4.0
@@ -98,6 +99,7 @@ pandas==2.3.3
 passlib==1.7.4
 patsy==1.0.2
 pillow==11.0.0
+pdf2image==1.17.0
 plotly==6.5.0
 propcache==0.4.1
 protobuf==6.31.1
@@ -119,6 +121,7 @@ PyJWT==2.10.1
 pyngrok==7.5.0
 pyparsing==3.2.3
 pypdf==5.1.0
+pypdfium2==5.9.0
 PyPDF2==3.0.1
 pypiwin32==223
 pytesseract==0.3.13
