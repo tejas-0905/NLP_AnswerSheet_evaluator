@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { getMyClassrooms } from "../../api/classroom";
 import { createExam } from "../../api/exam";
@@ -35,6 +35,8 @@ const labelStyle = {
 
 export default function CreateExam() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const initialClassroomId = state?.classroomId ? String(state.classroomId) : "";
   const [classrooms, setClassrooms] = useState([]);
   const [form, setForm] = useState({
     classroom_id: "",
@@ -49,10 +51,13 @@ export default function CreateExam() {
   useEffect(() => {
     getMyClassrooms().then((r) => {
       setClassrooms(r.data);
-      if (r.data.length > 0)
+      if (initialClassroomId) {
+        setForm((f) => ({ ...f, classroom_id: initialClassroomId }));
+      } else if (r.data.length > 0) {
         setForm((f) => ({ ...f, classroom_id: r.data[0].id }));
+      }
     });
-  }, []);
+  }, [initialClassroomId]);
 
   const updateQuestion = (i, field, value) => {
     setQuestions((prev) =>
@@ -89,7 +94,7 @@ export default function CreateExam() {
         questions: questions.map((q, i) => ({ ...q, order_index: i })),
       });
       toast.success("Exam created!");
-      navigate("/teacher/exams");
+      navigate(initialClassroomId ? `/teacher/classrooms/${initialClassroomId}/exams` : "/teacher/exams");
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to create exam");
     } finally {
@@ -101,7 +106,7 @@ export default function CreateExam() {
     <div style={{ maxWidth: 760 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
         <button
-          onClick={() => navigate("/teacher/exams")}
+          onClick={() => navigate(initialClassroomId ? `/teacher/classrooms/${initialClassroomId}/exams` : "/teacher/exams")}
           style={{
             background: "none", border: "none", cursor: "pointer",
             color: "#6b7280", fontSize: 14, padding: 0,
@@ -309,7 +314,7 @@ export default function CreateExam() {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/teacher/exams")}
+            onClick={() => navigate(initialClassroomId ? `/teacher/classrooms/${initialClassroomId}/exams` : "/teacher/exams")}
             style={{
               background: "#f3f4f6", color: "#374151", border: "none",
               borderRadius: 8, padding: "10px 20px",

@@ -12,6 +12,7 @@ import Dashboard     from "./pages/teacher/Dashboard";
 import Classrooms    from "./pages/teacher/Classrooms";
 import Exams         from "./pages/teacher/Exams";
 import CreateExam    from "./pages/teacher/CreateExam";
+import ExamDetail    from "./pages/teacher/ExamDetail";
 import Results       from "./pages/teacher/Results";
 import ResultsHome   from "./pages/teacher/ResultsHome";
 import Leaderboard   from "./pages/teacher/Leaderboard";
@@ -47,7 +48,15 @@ function AppRoutes() {
         }>
           <Route index                      element={<Dashboard />} />
           <Route path="classrooms"          element={<Classrooms />} />
+          <Route path="classrooms/:classroomId" element={<Navigate to="exams" replace />} />
+          <Route path="classrooms/:classroomId/exams" element={<Exams />} />
+          <Route path="classrooms/:classroomId/exams/:examId" element={<ExamDetail />} />
+          <Route path="classrooms/:classroomId/results" element={<ResultsHome />} />
+          <Route path="classrooms/:classroomId/results/:examId" element={<Results />} />
+          <Route path="classrooms/:classroomId/students" element={<Students />} />
+          <Route path="classrooms/:classroomId/leaderboard" element={<Leaderboard />} />
           <Route path="exams"               element={<Exams />} />
+          <Route path="exams/:examId"        element={<ExamDetail />} />
           <Route path="exams/create"        element={<CreateExam />} />
           <Route path="results"             element={<ResultsHome />} />
           <Route path="results/:examId"     element={<Results />} />

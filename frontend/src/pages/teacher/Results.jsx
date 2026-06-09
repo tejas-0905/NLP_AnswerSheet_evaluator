@@ -27,8 +27,21 @@ const barColor = (pct) => {
   return "#dc2626";
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "Not available";
+  return new Date(value).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const percent = (value) => `${Math.round((Number(value) || 0) * 100)}%`;
+
 export default function Results() {
-  const { examId } = useParams();
+  const { examId, classroomId } = useParams();
   const navigate = useNavigate();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +91,7 @@ export default function Results() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <button
-            onClick={() => navigate("/teacher/exams")}
+            onClick={() => navigate(classroomId ? `/teacher/classrooms/${classroomId}/results` : "/teacher/exams")}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14, padding: 0 }}
           >
             ← Back
@@ -197,19 +210,68 @@ export default function Results() {
                             {r.answers.map((a, i) => (
                               <div key={i} style={{
                                 background: "#fff", border: "1px solid #e5e7eb",
-                                borderRadius: 8, padding: "12px 14px",
+                                borderRadius: 8, padding: "14px 16px",
                               }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 500, color: "#111" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 12 }}>
+                                  <span style={{ fontSize: 14, fontWeight: 700, color: "#111" }}>
                                     Question {i + 1}
                                   </span>
-                                  <span style={{ fontSize: 13, color: barColor(a.percentage), fontWeight: 500 }}>
-                                    {a.marks.toFixed(1)} marks · {a.percentage.toFixed(1)}%
+                                  <span style={{ fontSize: 13, color: barColor(a.percentage), fontWeight: 600 }}>
+                                    {a.marks.toFixed(1)} / {a.max_marks || "?"} marks · {a.percentage.toFixed(1)}%
                                   </span>
                                 </div>
+
+                                {a.question_text && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <p style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, margin: "0 0 5px" }}>
+                                      QUESTION
+                                    </p>
+                                    <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.5, margin: 0 }}>
+                                      {a.question_text}
+                                    </p>
+                                  </div>
+                                )}
+
+                                <div style={{
+                                  background: "#f8fafc",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: 8,
+                                  padding: "11px 12px",
+                                  marginBottom: 12,
+                                }}>
+                                  <p style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, margin: "0 0 6px" }}>
+                                    STUDENT ANSWER
+                                  </p>
+                                  <p style={{ fontSize: 13, color: "#111", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0 }}>
+                                    {a.answer_text || "No answer submitted."}
+                                  </p>
+                                </div>
+
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 12 }}>
+                                  <div style={{ background: "#fff", border: "1px solid #f3f4f6", borderRadius: 8, padding: "9px 10px" }}>
+                                    <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 3px", fontWeight: 700 }}>ANSWERED AT</p>
+                                    <p style={{ fontSize: 13, color: "#374151", margin: 0 }}>{formatDateTime(a.submitted_at)}</p>
+                                  </div>
+                                  <div style={{ background: "#fff", border: "1px solid #f3f4f6", borderRadius: 8, padding: "9px 10px" }}>
+                                    <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 3px", fontWeight: 700 }}>TIME GIVEN</p>
+                                    <p style={{ fontSize: 13, color: "#374151", margin: 0 }}>
+                                      {a.time_limit_minutes ? `${a.time_limit_minutes} minutes` : "No time limit"}
+                                    </p>
+                                  </div>
+                                  <div style={{ background: "#fff", border: "1px solid #f3f4f6", borderRadius: 8, padding: "9px 10px" }}>
+                                    <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 3px", fontWeight: 700 }}>EVALUATED AT</p>
+                                    <p style={{ fontSize: 13, color: "#374151", margin: 0 }}>{formatDateTime(a.evaluated_at)}</p>
+                                  </div>
+                                </div>
+
                                 {a.missing_keywords?.length > 0 && (
                                   <p style={{ fontSize: 12, color: "#dc2626", margin: "0 0 4px" }}>
                                     Missing: {a.missing_keywords.join(", ")}
+                                  </p>
+                                )}
+                                {a.covered_keywords?.length > 0 && (
+                                  <p style={{ fontSize: 12, color: "#16a34a", margin: "0 0 4px" }}>
+                                    Covered: {a.covered_keywords.join(", ")}
                                   </p>
                                 )}
                                 {a.suggestions?.map((s, si) => (
@@ -217,6 +279,26 @@ export default function Results() {
                                     → {s}
                                   </p>
                                 ))}
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                                  {[
+                                    ["Meaning", percent(a.semantic_score)],
+                                    ["Keywords", percent(a.keyword_score)],
+                                    ["Points", percent(a.sentence_score)],
+                                    ["Length", percent(a.length_score)],
+                                    ["Copy risk", `${Number(a.copy_risk || 0).toFixed(1)}%`],
+                                  ].map(([label, value]) => (
+                                    <span key={label} style={{
+                                      background: "#f9fafb",
+                                      border: "1px solid #e5e7eb",
+                                      borderRadius: 999,
+                                      padding: "4px 9px",
+                                      fontSize: 11,
+                                      color: "#4b5563",
+                                    }}>
+                                      {label}: {value}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                           </div>

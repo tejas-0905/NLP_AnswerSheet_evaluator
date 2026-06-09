@@ -1,19 +1,29 @@
 import { useState } from "react";
-import { Copy, Check, Trash2, Users } from "lucide-react";
+import { Copy, Check, Trash2, Users, ArrowRight } from "lucide-react";
 
-export default function ClassroomCard({ classroom, onDelete }) {
+export default function ClassroomCard({ classroom, onDelete, onOpen }) {
   const [copied, setCopied] = useState(false);
 
-  const copyCode = () => {
+  const copyCode = (event) => {
+    event.stopPropagation();
     navigator.clipboard.writeText(classroom.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div style={{
+    <div
+      onClick={() => onOpen?.(classroom)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onOpen?.(classroom);
+      }}
+      style={{
       background: "#fff", border: "1px solid #e5e7eb",
       borderRadius: 12, padding: "20px 24px",
+      cursor: onOpen ? "pointer" : "default",
+      transition: "border-color 0.15s ease, box-shadow 0.15s ease",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
@@ -28,7 +38,10 @@ export default function ClassroomCard({ classroom, onDelete }) {
           </div>
         </div>
         <button
-          onClick={() => onDelete(classroom.id)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete(classroom.id);
+          }}
           style={{
             background: "none", border: "none", cursor: "pointer",
             color: "#d1d5db", padding: 4,
@@ -66,6 +79,14 @@ export default function ClassroomCard({ classroom, onDelete }) {
           {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
         </button>
       </div>
+      {onOpen && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "flex-end",
+          gap: 6, marginTop: 14, color: "#2563eb", fontSize: 13, fontWeight: 600,
+        }}>
+          Open classroom <ArrowRight size={14} />
+        </div>
+      )}
     </div>
   );
 }

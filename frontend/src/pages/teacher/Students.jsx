@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { getMyClassrooms } from "../../api/classroom";
 import { getStudents, removeStudent } from "../../api/classroom";
 import { UserX, Users } from "lucide-react";
 import toast from "react-hot-toast";
+import ClassroomTabs from "../../components/ClassroomTabs";
 
 const BLUE = "#4361ee";
 
 export default function Students() {
+  const { classroomId } = useParams();
   const [classrooms, setClassrooms]     = useState([]);
   const [selected, setSelected]         = useState("");
   const [students, setStudents]         = useState([]);
@@ -16,9 +19,13 @@ export default function Students() {
   useEffect(() => {
     getMyClassrooms().then((r) => {
       setClassrooms(r.data);
-      if (r.data.length > 0) setSelected(String(r.data[0].id));
+      if (classroomId) {
+        setSelected(String(classroomId));
+      } else if (r.data.length > 0) {
+        setSelected(String(r.data[0].id));
+      }
     });
-  }, []);
+  }, [classroomId]);
 
   useEffect(() => {
     if (!selected) return;
@@ -48,12 +55,19 @@ export default function Students() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 24px", color: "#111" }}>
-        Students
-      </h1>
+      {classroomId ? (
+        <ClassroomTabs
+          classroomId={classroomId}
+          classroomName={classrooms.find((c) => String(c.id) === String(selected))?.name}
+        />
+      ) : (
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 24px", color: "#111" }}>
+          Students
+        </h1>
+      )}
 
       {/* Classroom picker */}
-      <div style={{ marginBottom: 24 }}>
+      {!classroomId && <div style={{ marginBottom: 24 }}>
         <label style={{ fontSize: 13, color: "#6b7280", display: "block", marginBottom: 6 }}>
           Classroom
         </label>
@@ -70,7 +84,7 @@ export default function Students() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-      </div>
+      </div>}
 
       {loading ? (
         <p style={{ color: "#9ca3af", fontSize: 14 }}>Loading students...</p>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { getMyClassrooms } from "../../api/classroom";
 import { getExamsForClass, getExamResults } from "../../api/exam";
+import ClassroomTabs from "../../components/ClassroomTabs";
 
 const medal = (rank) => {
   if (rank === 1) return { bg: "#fef9c3", color: "#ca8a04", icon: "🥇" };
@@ -10,6 +12,7 @@ const medal = (rank) => {
 };
 
 export default function Leaderboard() {
+  const { classroomId } = useParams();
   const [classrooms, setClassrooms] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [exams, setExams] = useState([]);
@@ -20,9 +23,13 @@ export default function Leaderboard() {
   useEffect(() => {
     getMyClassrooms().then((r) => {
       setClassrooms(r.data);
-      if (r.data.length > 0) setSelectedClass(String(r.data[0].id));
+      if (classroomId) {
+        setSelectedClass(String(classroomId));
+      } else if (r.data.length > 0) {
+        setSelectedClass(String(r.data[0].id));
+      }
     });
-  }, []);
+  }, [classroomId]);
 
   useEffect(() => {
     if (!selectedClass) return;
@@ -55,13 +62,20 @@ export default function Leaderboard() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 24px", color: "#111" }}>
-        Leaderboard
-      </h1>
+      {classroomId ? (
+        <ClassroomTabs
+          classroomId={classroomId}
+          classroomName={classrooms.find((c) => String(c.id) === String(selectedClass))?.name}
+        />
+      ) : (
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 24px", color: "#111" }}>
+          Leaderboard
+        </h1>
+      )}
 
       {/* Selectors */}
       <div style={{ display: "flex", gap: 14, marginBottom: 28 }}>
-        <div>
+        {!classroomId && <div>
           <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 5 }}>
             Classroom
           </label>
@@ -77,7 +91,7 @@ export default function Leaderboard() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-        </div>
+        </div>}
         <div>
           <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 5 }}>
             Exam

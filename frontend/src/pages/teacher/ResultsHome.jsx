@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { BarChart2, Eye } from "lucide-react";
 import { getMyClassrooms } from "../../api/classroom";
 import { getExamsForClass } from "../../api/exam";
+import ClassroomTabs from "../../components/ClassroomTabs";
 
 export default function ResultsHome() {
   const navigate = useNavigate();
+  const { classroomId } = useParams();
   const [classrooms, setClassrooms] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [exams, setExams] = useState([]);
@@ -14,9 +16,13 @@ export default function ResultsHome() {
   useEffect(() => {
     getMyClassrooms().then((r) => {
       setClassrooms(r.data);
-      if (r.data.length > 0) setSelectedClass(r.data[0].id);
+      if (classroomId) {
+        setSelectedClass(classroomId);
+      } else if (r.data.length > 0) {
+        setSelectedClass(r.data[0].id);
+      }
     });
-  }, []);
+  }, [classroomId]);
 
   useEffect(() => {
     if (!selectedClass) return;
@@ -28,16 +34,23 @@ export default function ResultsHome() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px", color: "#111" }}>
-          Results
-        </h1>
-        <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>
-          Select an exam to view student submissions and scores.
-        </p>
-      </div>
+      {classroomId ? (
+        <ClassroomTabs
+          classroomId={classroomId}
+          classroomName={classrooms.find((c) => String(c.id) === String(selectedClass))?.name}
+        />
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px", color: "#111" }}>
+            Results
+          </h1>
+          <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>
+            Select an exam to view student submissions and scores.
+          </p>
+        </div>
+      )}
 
-      <div style={{ marginBottom: 22 }}>
+      {!classroomId && <div style={{ marginBottom: 22 }}>
         <label style={{ fontSize: 13, color: "#6b7280", display: "block", marginBottom: 6 }}>
           Classroom
         </label>
@@ -58,7 +71,7 @@ export default function ResultsHome() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-      </div>
+      </div>}
 
       {loading ? (
         <p style={{ color: "#9ca3af", fontSize: 14 }}>Loading exams...</p>
@@ -93,7 +106,11 @@ export default function ResultsHome() {
                 </p>
               </div>
               <button
-                onClick={() => navigate(`/teacher/results/${exam.id}`)}
+                onClick={() => navigate(
+                  classroomId
+                    ? `/teacher/classrooms/${classroomId}/results/${exam.id}`
+                    : `/teacher/results/${exam.id}`
+                )}
                 style={{
                   display: "flex",
                   alignItems: "center",

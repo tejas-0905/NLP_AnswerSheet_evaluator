@@ -99,12 +99,62 @@ def delete_exam(
     return {"message": "Deleted"}
 
 
+@router.get("/{exam_id}")
+def get_exam_detail(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(404, "Exam not found")
+
+    classroom = db.query(Classroom).filter(
+        Classroom.id == exam.classroom_id,
+        Classroom.teacher_id == current_user.id,
+    ).first()
+    if not classroom:
+        raise HTTPException(403, "Exam not found or not yours")
+
+    questions = db.query(Question).filter(
+        Question.exam_id == exam.id
+    ).order_by(Question.order_index).all()
+
+    return {
+        "id": exam.id,
+        "classroom_id": exam.classroom_id,
+        "classroom_name": classroom.name,
+        "title": exam.title,
+        "description": exam.description,
+        "time_limit_minutes": exam.time_limit_minutes,
+        "is_active": exam.is_active,
+        "created_at": exam.created_at,
+        "question_count": len(questions),
+        "total_marks": sum(q.max_marks for q in questions),
+        "questions": [
+            {
+                "id": q.id,
+                "question_text": q.question_text,
+                "model_answer": q.model_answer,
+                "max_marks": q.max_marks,
+                "required_concepts": q.required_concepts,
+                "order_index": q.order_index,
+            }
+            for q in questions
+        ],
+    }
+
+
 @router.get("/{exam_id}/results")
 def get_exam_results(
     exam_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(404, "Exam not found")
+
     questions = db.query(Question).filter(Question.exam_id == exam_id).all()
     q_ids = [q.id for q in questions]
     rows = []
@@ -132,10 +182,21 @@ def get_exam_results(
             student_map[sid]["total_max"] += q.max_marks if q else 0
             student_map[sid]["answers"].append({
                 "question_id": sub.question_id,
+                "question_text": q.question_text if q else "",
+                "answer_text": sub.answer_text,
+                "submitted_at": sub.submitted_at,
+                "evaluated_at": ev.evaluated_at,
+                "time_limit_minutes": exam.time_limit_minutes,
+                "max_marks": q.max_marks if q else 0,
                 "marks": float(ev.marks),
                 "percentage": float(ev.percentage),
                 "grade_band": ev.grade_band,
+                "semantic_score": float(ev.semantic_score or 0),
+                "keyword_score": float(ev.keyword_score or 0),
+                "sentence_score": float(ev.sentence_score or 0),
+                "length_score": float(ev.length_score or 0),
                 "missing_keywords": ev.missing_keywords,
+                "covered_keywords": ev.covered_keywords,
                 "suggestions": ev.suggestions,
                 "copy_risk": float(ev.copy_risk or 0),
             })

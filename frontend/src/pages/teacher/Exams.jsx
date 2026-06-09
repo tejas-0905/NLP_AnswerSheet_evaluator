@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Plus, ToggleLeft, ToggleRight, Trash2, Eye } from "lucide-react";
 import { getMyClassrooms } from "../../api/classroom";
 import { getExamsForClass, toggleExam, deleteExam } from "../../api/exam";
 import toast from "react-hot-toast";
+import ClassroomTabs from "../../components/ClassroomTabs";
 
 const badge = (active) => ({
   display: "inline-block",
@@ -17,6 +18,7 @@ const badge = (active) => ({
 
 export default function Exams() {
   const navigate = useNavigate();
+  const { classroomId } = useParams();
   const [classrooms, setClassrooms] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [exams, setExams] = useState([]);
@@ -25,9 +27,13 @@ export default function Exams() {
   useEffect(() => {
     getMyClassrooms().then((r) => {
       setClassrooms(r.data);
-      if (r.data.length > 0) setSelectedClass(r.data[0].id);
+      if (classroomId) {
+        setSelectedClass(classroomId);
+      } else if (r.data.length > 0) {
+        setSelectedClass(r.data[0].id);
+      }
     });
-  }, []);
+  }, [classroomId]);
 
   const loadExams = (classroomId) => {
     setLoadingExams(true);
@@ -67,11 +73,21 @@ export default function Exams() {
 
   return (
     <div>
+      {classroomId && (
+        <ClassroomTabs
+          classroomId={classroomId}
+          classroomName={classrooms.find((c) => String(c.id) === String(selectedClass))?.name}
+        />
+      )}
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: "#111" }}>Exams</h1>
         <button
-          onClick={() => navigate("/teacher/exams/create")}
+          onClick={() => navigate(
+            "/teacher/exams/create",
+            classroomId ? { state: { classroomId: selectedClass } } : undefined
+          )}
           style={{
             display: "flex", alignItems: "center", gap: 6,
             background: "#2563eb", color: "#fff", border: "none",
@@ -83,7 +99,7 @@ export default function Exams() {
       </div>
 
       {/* Classroom selector */}
-      <div style={{ marginBottom: 20 }}>
+      {!classroomId && <div style={{ marginBottom: 20 }}>
         <label style={{ fontSize: 13, color: "#6b7280", display: "block", marginBottom: 6 }}>
           Filter by classroom
         </label>
@@ -99,7 +115,7 @@ export default function Exams() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-      </div>
+      </div>}
 
       {/* Exams list */}
       {loadingExams ? (
@@ -112,10 +128,29 @@ export default function Exams() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {exams.map((exam) => (
-            <div key={exam.id} style={{
+            <div
+              key={exam.id}
+              onClick={() => navigate(
+                classroomId
+                  ? `/teacher/classrooms/${classroomId}/exams/${exam.id}`
+                  : `/teacher/exams/${exam.id}`
+              )}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  navigate(
+                    classroomId
+                      ? `/teacher/classrooms/${classroomId}/exams/${exam.id}`
+                      : `/teacher/exams/${exam.id}`
+                  );
+                }
+              }}
+              style={{
               background: "#fff", border: "1px solid #e5e7eb",
               borderRadius: 12, padding: "18px 22px",
               display: "flex", alignItems: "center", justifyContent: "space-between",
+              cursor: "pointer",
             }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -134,7 +169,14 @@ export default function Exams() {
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
-                  onClick={() => navigate(`/teacher/results/${exam.id}`)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate(
+                    classroomId
+                      ? `/teacher/classrooms/${classroomId}/results/${exam.id}`
+                      : `/teacher/results/${exam.id}`
+                    );
+                  }}
                   title="View results"
                   style={{
                     background: "#f8fafc", border: "1px solid #e5e7eb",
@@ -145,7 +187,10 @@ export default function Exams() {
                   <Eye size={14} /> Results
                 </button>
                 <button
-                  onClick={() => handleToggle(exam)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggle(exam);
+                  }}
                   title={exam.is_active ? "Deactivate" : "Publish"}
                   style={{
                     background: exam.is_active ? "#f0fdf4" : "#f8fafc",
@@ -157,7 +202,10 @@ export default function Exams() {
                   {exam.is_active ? <ToggleRight size={17} /> : <ToggleLeft size={17} />}
                 </button>
                 <button
-                  onClick={() => handleDelete(exam.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleDelete(exam.id);
+                  }}
                   style={{
                     background: "none", border: "none",
                     cursor: "pointer", color: "#d1d5db", padding: "6px",

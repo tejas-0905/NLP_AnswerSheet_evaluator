@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { getMyClassrooms, createClassroom, deleteClassroom } from "../../api/classroom";
 import ClassroomCard from "../../components/ClassroomCard";
@@ -11,6 +12,7 @@ const getErrorMessage = (error, fallback) =>
   fallback;
 
 export default function Classrooms() {
+  const navigate = useNavigate();
   const [classrooms, setClassrooms] = useState([]);
   const [name, setName] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -170,7 +172,12 @@ export default function Classrooms() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
           {classrooms.map((c) => (
-            <ClassroomCard key={c.id} classroom={c} onDelete={handleDelete} />
+            <ClassroomCard
+              key={c.id}
+              classroom={c}
+              onDelete={handleDelete}
+              onOpen={(classroom) => navigate(`/teacher/classrooms/${classroom.id}/exams`)}
+            />
           ))}
         </div>
       )}
