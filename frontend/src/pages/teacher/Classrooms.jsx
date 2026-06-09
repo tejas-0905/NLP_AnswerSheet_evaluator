@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import { getMyClassrooms, createClassroom, deleteClassroom } from "../../api/classroom";
 import ClassroomCard from "../../components/ClassroomCard";
 import toast from "react-hot-toast";
@@ -92,15 +92,19 @@ export default function Classrooms() {
   };
 
   return (
-    <div>
+    <div style={{ maxWidth: 1180 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: "#111" }}>Classrooms</h1>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 3px", color: "#0f172a" }}>Classrooms</h1>
+          <p style={{ color: "#64748b", fontSize: 13, margin: 0 }}>Manage your classrooms and share codes with students</p>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           style={{
             display: "flex", alignItems: "center", gap: 6,
-            background: "#2563eb", color: "#fff", border: "none",
-            borderRadius: 8, padding: "9px 16px", cursor: "pointer", fontSize: 14,
+            background: "#0f2a5f", color: "#fff", border: "1px solid #0f2a5f",
+            borderRadius: 8, padding: "10px 16px", cursor: "pointer", fontSize: 14, fontWeight: 800,
+            boxShadow: "0 8px 18px rgba(15, 42, 95, 0.18)",
           }}
         >
           <Plus size={15} /> New classroom
@@ -109,20 +113,27 @@ export default function Classrooms() {
 
       {showForm && (
         <form onSubmit={handleCreate} style={{
-          background: "#fff", border: "1px solid #e5e7eb",
-          borderRadius: 12, padding: "20px 24px", marginBottom: 24,
+          background: "#fff", border: "1px solid #dfe6f3",
+          borderRadius: 8, padding: "20px 24px", marginBottom: 24,
+          boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
         }}>
-          <p style={{ fontWeight: 600, fontSize: 15, margin: "0 0 14px", color: "#111" }}>
-            Create new classroom
-          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+            <p style={{ fontWeight: 800, fontSize: 15, margin: 0, color: "#0f172a" }}>
+              Create new classroom
+            </p>
+            <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>A unique code is auto-generated</p>
+          </div>
+          <label style={{ display: "block", color: "#475569", fontSize: 12, fontWeight: 800, marginBottom: 6 }}>
+            Classroom name
+          </label>
           <div style={{ display: "flex", gap: 12 }}>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Physics 2024 - Batch A"
+              placeholder="e.g. Biology 10th B"
               required
               style={{
-                flex: 1, padding: "9px 12px", border: "1px solid #e5e7eb",
+                flex: 1, padding: "10px 12px", border: "1px solid #dfe6f3",
                 borderRadius: 8, fontSize: 14, outline: "none",
               }}
             />
@@ -130,21 +141,23 @@ export default function Classrooms() {
               type="submit"
               disabled={loading}
               style={{
-                background: "#2563eb", color: "#fff", border: "none",
-                borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontSize: 14,
+                display: "flex", alignItems: "center", gap: 6,
+                background: "#0f2a5f", color: "#fff", border: "1px solid #0f2a5f",
+                borderRadius: 8, padding: "10px 18px", cursor: "pointer", fontSize: 14, fontWeight: 800,
               }}
             >
-              {loading ? "Creating..." : "Create"}
+              <Check size={15} /> {loading ? "Creating..." : "Create"}
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
               style={{
-                background: "#f3f4f6", color: "#374151", border: "none",
-                borderRadius: 8, padding: "9px 16px", cursor: "pointer", fontSize: 14,
+                display: "flex", alignItems: "center", gap: 6,
+                background: "#fff", color: "#475569", border: "1px solid #dfe6f3",
+                borderRadius: 8, padding: "10px 16px", cursor: "pointer", fontSize: 14, fontWeight: 800,
               }}
             >
-              Cancel
+              <X size={15} /> Cancel
             </button>
           </div>
         </form>
@@ -170,7 +183,11 @@ export default function Classrooms() {
           <p style={{ fontSize: 13 }}>Click "New classroom" to create one.</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+        <div>
+          <p style={{ color: "#64748b", fontSize: 12, fontWeight: 800, margin: "0 0 12px" }}>
+            YOUR CLASSROOMS - {classrooms.length} TOTAL
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 16 }}>
           {classrooms.map((c) => (
             <ClassroomCard
               key={c.id}
@@ -179,6 +196,28 @@ export default function Classrooms() {
               onOpen={(classroom) => navigate(`/teacher/classrooms/${classroom.id}/exams`)}
             />
           ))}
+            <button
+              onClick={() => setShowForm(true)}
+              style={{
+                minHeight: 220,
+                border: "1px dashed #cbd5e1",
+                background: "#fff",
+                color: "#475569",
+                borderRadius: 8,
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                fontWeight: 800,
+              }}
+            >
+              <Plus size={20} />
+              New classroom
+              <span style={{ fontWeight: 500, color: "#64748b", fontSize: 12 }}>Click to create</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -59,12 +59,28 @@ def get_my_classrooms(
         count = db.query(ClassroomMember).filter(
             ClassroomMember.classroom_id == c.id
         ).count()
+        exam_count = db.query(Exam).filter(Exam.classroom_id == c.id).count()
+        active_exam_count = db.query(Exam).filter(
+            Exam.classroom_id == c.id,
+            Exam.is_active == True,
+        ).count()
+        submission_count = db.query(Submission.student_id).join(
+            Question, Submission.question_id == Question.id
+        ).join(
+            Exam, Question.exam_id == Exam.id
+        ).filter(
+            Exam.classroom_id == c.id
+        ).distinct().count()
         result.append({
             "id": c.id,
             "name": c.name,
             "code": c.code,
             "is_active": c.is_active,
+            "created_at": c.created_at,
             "student_count": count,
+            "exam_count": exam_count,
+            "active_exam_count": active_exam_count,
+            "submission_count": submission_count,
         })
     return result
 

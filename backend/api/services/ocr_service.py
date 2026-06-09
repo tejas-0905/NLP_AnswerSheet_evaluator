@@ -573,6 +573,43 @@ def parse_ocrspace_response(payload: dict) -> tuple[str, float]:
     return combined_text, confidence
 
 
+QUESTION_MARKER_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])(?:"
+    r"(?:q|que|ques|question|ans|answer)(?:\s*(?:no|number))?\s*[\.:)\-#]?\s*(\d{1,2})(?!\d)"
+    r"|(\d{1,2})\s*[\).:\-]\s+(?=[A-Za-z])"
+    r")"
+)
+
+
+def split_text_by_question_numbers(text: str, num_questions: int) -> list[str] | None:
+    """Split OCR text by explicit handwritten question markers such as Q1 or Question 1."""
+    cleaned = normalize_ocr_text(text)
+    if not cleaned:
+        return None
+
+    matches = []
+    for match in QUESTION_MARKER_RE.finditer(cleaned):
+        raw_number = match.group(1) or match.group(2)
+        if not raw_number:
+            continue
+        question_number = int(raw_number)
+        if 1 <= question_number <= num_questions:
+            matches.append((match.start(), match.end(), question_number - 1))
+
+    if not matches:
+        return None
+
+    answers = [""] * num_questions
+    for item_index, (_, marker_end, question_index) in enumerate(matches):
+        next_start = matches[item_index + 1][0] if item_index + 1 < len(matches) else len(cleaned)
+        answer_text = cleaned[marker_end:next_start].strip(" \n\t:-")
+        if answer_text:
+            existing = answers[question_index]
+            answers[question_index] = f"{existing}\n{answer_text}".strip() if existing else answer_text
+
+    return answers
+
+
 def ocrspace_region(region: np.ndarray) -> tuple[str, float]:
     if not settings.OCRSPACE_API_KEY:
         return "", 0.0
@@ -602,6 +639,34 @@ def ocrspace_answer_sheet(pages: list[np.ndarray], num_questions: int) -> dict |
         return None
 
     try:
+        page_texts = []
+        confidences = []
+        for page in pages:
+            text, confidence = ocrspace_region(page)
+            if text:
+                page_texts.append(text)
+            if confidence > 0:
+                confidences.append(confidence)
+
+        full_text = normalize_ocr_text("\n".join(page_texts))
+        split_answers = split_text_by_question_numbers(full_text, num_questions)
+        if split_answers is not None:
+            confidence = float(round(sum(confidences) / len(confidences), 2)) if confidences else 0.0
+            return {
+                "pages_processed": len(pages),
+                "questions": [
+                    {
+                        "index": idx,
+                        "text": answer,
+                        "confidence": confidence if answer.strip() else 100.0,
+                    }
+                    for idx, answer in enumerate(split_answers)
+                ],
+                "overall_confidence": confidence,
+                "error": None,
+                "engine": "ocrspace",
+            }
+
         if len(pages) > 1:
             resized = []
             target_w = pages[0].shape[1]
@@ -616,12 +681,12 @@ def ocrspace_answer_sheet(pages: list[np.ndarray], num_questions: int) -> dict |
 
         regions = detect_question_regions(full_image, num_questions)
         questions = []
-        confidences = []
+        region_confidences = []
         for idx, region in enumerate(regions):
             text, confidence = ocrspace_region(region)
             questions.append({"index": idx, "text": text, "confidence": confidence})
             if confidence > 0:
-                confidences.append(confidence)
+                region_confidences.append(confidence)
 
         if not any(q["text"] for q in questions):
             return None
@@ -629,7 +694,7 @@ def ocrspace_answer_sheet(pages: list[np.ndarray], num_questions: int) -> dict |
         return {
             "pages_processed": len(pages),
             "questions": questions,
-            "overall_confidence": float(round(sum(confidences) / len(confidences), 2)) if confidences else 0.0,
+            "overall_confidence": float(round(sum(region_confidences) / len(region_confidences), 2)) if region_confidences else 0.0,
             "error": None,
             "engine": "ocrspace",
         }

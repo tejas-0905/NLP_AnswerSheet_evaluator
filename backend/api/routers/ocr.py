@@ -135,7 +135,8 @@ async def upload_answer_sheet(
 
     db.commit()
 
-    low_confidence = [e for e in extractions if e[2] < MIN_AUTO_EVALUATE_CONFIDENCE]
+    answered_extractions = [e for e in extractions if e[1].strip()]
+    low_confidence = [e for e in answered_extractions if e[2] < MIN_AUTO_EVALUATE_CONFIDENCE]
     if low_confidence:
         ocr_sub.status = "needs_review"
         db.commit()
@@ -143,7 +144,7 @@ async def upload_answer_sheet(
             "message": "Answer sheet processed. Low-confidence OCR needs teacher review before evaluation.",
             "pages_processed": result["pages_processed"],
             "overall_confidence": result["overall_confidence"],
-            "questions_extracted": len(extractions),
+            "questions_extracted": len(answered_extractions),
             "low_confidence_questions": len(low_confidence),
             "needs_review": True,
             "evaluation_results": [],
@@ -217,7 +218,7 @@ async def upload_answer_sheet(
         "message": "Answer sheet processed and evaluated",
         "pages_processed": result["pages_processed"],
         "overall_confidence": result["overall_confidence"],
-        "questions_extracted": len(extractions),
+        "questions_extracted": len(answered_extractions),
         "low_confidence_questions": len(low_confidence),
         "needs_review": False,
         "evaluation_results": evaluation_results,
