@@ -24,3 +24,14 @@ class TokenResponse(BaseModel):
     token_type: str
     role: str
     name: str
+
+class UserSettingsUpdate(BaseModel):
+    full_name: str
+    institution: str | None = ""
+    department: str | None = ""
+    bio: str | None = ""
+    notify_submissions: bool = True
+    notify_low_scores: bool = True
+    notify_ocr_review: bool = True
+    default_question_marks: int = 10
+    release_marks_immediately: bool = True

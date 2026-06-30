@@ -4,7 +4,8 @@ import { useAuth } from "../../context/useAuth";
 import { getMyClassrooms } from "../../api/student";
 import { School, BookOpen, Trophy, ArrowRight } from "lucide-react";
 
-const BLUE = "#4361ee";
+const BLUE = "#0f2a5f";
+const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -20,15 +21,15 @@ export default function StudentDashboard() {
   const stats = [
     { label: "Classrooms joined", value: classrooms.length, icon: School,   color: BLUE      },
     { label: "Active exams",      value: totalExams,         icon: BookOpen, color: "#059669" },
-    { label: "Rank",              value: "—",               icon: Trophy,   color: "#d97706" },
+    { label: "Rank",              value: "-",               icon: Trophy,   color: "#d97706" },
   ];
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "#111" }}>
-        Hey, {user?.name?.split(" ")[0]} 👋
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "#0f172a" }}>
+        Hey, {user?.name?.split(" ")[0]}
       </h1>
-      <p style={{ color: "#6b7280", margin: "0 0 28px", fontSize: 14 }}>
+      <p style={{ color: "#64748b", margin: "0 0 28px", fontSize: 14 }}>
         Here's your learning overview.
       </p>
 
@@ -36,9 +37,10 @@ export default function StudentDashboard() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 14, marginBottom: 32 }}>
         {stats.map((s) => (
           <div key={s.label} style={{
-            background: "#fff", border: "1px solid #e8eaf6",
-            borderRadius: 12, padding: "18px 20px",
+            background: "#fff", border: "1px solid #dfe6f3",
+            borderRadius: 8, padding: "18px 20px",
             display: "flex", alignItems: "center", gap: 14,
+            boxShadow: CARD_SHADOW,
           }}>
             <div style={{
               width: 42, height: 42, borderRadius: 10,
@@ -48,8 +50,8 @@ export default function StudentDashboard() {
               <s.icon size={19} color={s.color} />
             </div>
             <div>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{s.label}</p>
-              <p style={{ fontSize: 22, fontWeight: 700, margin: "2px 0 0", color: "#111" }}>{s.value}</p>
+              <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>{s.label}</p>
+              <p style={{ fontSize: 22, fontWeight: 700, margin: "2px 0 0", color: "#0f172a" }}>{s.value}</p>
             </div>
           </div>
         ))}
@@ -57,11 +59,12 @@ export default function StudentDashboard() {
 
       {/* Classrooms quick view */}
       <div style={{
-        background: "#fff", border: "1px solid #e8eaf6",
-        borderRadius: 12, padding: "20px 24px",
+        background: "#fff", border: "1px solid #dfe6f3",
+        borderRadius: 8, padding: "20px 24px",
+        boxShadow: CARD_SHADOW,
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <p style={{ fontWeight: 600, fontSize: 15, margin: 0, color: "#111" }}>My classrooms</p>
+          <p style={{ fontWeight: 600, fontSize: 15, margin: 0, color: "#0f172a" }}>My classrooms</p>
           <button
             onClick={() => navigate("/student/classrooms")}
             style={{ background: "none", border: "none", cursor: "pointer", color: BLUE, fontSize: 13 }}
@@ -95,14 +98,14 @@ export default function StudentDashboard() {
                 style={{
                   display: "flex", justifyContent: "space-between",
                   alignItems: "center", padding: "12px 14px",
-                  background: "#f8f9ff", borderRadius: 8,
-                  cursor: "pointer", border: "1px solid #e8eaf6",
+                  background: "#f8fafc", borderRadius: 8,
+                  cursor: "pointer", border: "1px solid #dfe6f3",
                 }}
               >
                 <div>
-                  <p style={{ fontWeight: 600, fontSize: 14, margin: 0, color: "#111" }}>{c.name}</p>
-                  <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-                    {c.teacher_name} · {c.active_exams} active exam{c.active_exams !== 1 ? "s" : ""}
+                  <p style={{ fontWeight: 600, fontSize: 14, margin: 0, color: "#0f172a" }}>{c.name}</p>
+                  <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0" }}>
+                    {c.teacher_name} - {c.active_exams} active exam{c.active_exams !== 1 ? "s" : ""}
                   </p>
                 </div>
                 <ArrowRight size={16} color="#9ca3af" />
@@ -114,3 +117,5 @@ export default function StudentDashboard() {
     </div>
   );
 }
+
+

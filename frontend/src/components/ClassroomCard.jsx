@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Check, Copy, MoreVertical, School, Users } from "lucide-react";
+import { BookOpen, Check, Copy, School, Trash2, Users } from "lucide-react";
 
 export default function ClassroomCard({ classroom, onDelete, onOpen }) {
   const [copied, setCopied] = useState(false);
@@ -41,17 +41,7 @@ export default function ClassroomCard({ classroom, onDelete, onOpen }) {
         }}>
           <School size={19} />
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{
-            background: "#ecfdf5",
-            color: "#047857",
-            borderRadius: 999,
-            padding: "4px 10px",
-            fontSize: 11,
-            fontWeight: 800,
-          }}>
-            Active
-          </span>
+        <div style={{ display: "flex", alignItems: "center" }}>
           <button
             onClick={(event) => {
               event.stopPropagation();
@@ -62,16 +52,16 @@ export default function ClassroomCard({ classroom, onDelete, onOpen }) {
               width: 34,
               height: 34,
               borderRadius: 8,
-              border: "1px solid #dfe6f3",
-              background: "#fff",
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
               cursor: "pointer",
-              color: "#94a3b8",
+              color: "#dc2626",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <MoreVertical size={16} />
+            <Trash2 size={15} />
           </button>
         </div>
       </div>

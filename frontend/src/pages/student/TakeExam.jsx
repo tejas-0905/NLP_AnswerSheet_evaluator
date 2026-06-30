@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { getQuestions, submitExam } from "../../api/student";
 import { Clock, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 
-const BLUE = "#4361ee";
+const BLUE = "#0f2a5f";
+const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
 
 export default function TakeExam() {
   const { examId } = useParams();
@@ -25,22 +26,14 @@ export default function TakeExam() {
     getQuestions(examId).then((r) => setQuestions(r.data));
   }, [examId]);
 
-  // Countdown timer
-  useEffect(() => {
-    if (!timeLeft) return;
-    if (timeLeft <= 0) { handleSubmit(); return; }
-    timerRef.current = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearTimeout(timerRef.current);
-  }, [timeLeft]);
+  const hasAnswer = useCallback((q) => (
+    Array.isArray(answers[q.id])
+      ? answers[q.id].length > 0
+      : answers[q.id]?.trim()
+  ), [answers]);
 
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, "0");
-    const s = (secs % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  };
-
-  const handleSubmit = async () => {
-    const unanswered = questions.filter((q) => !answers[q.id]?.trim());
+  const handleSubmit = useCallback(async () => {
+    const unanswered = questions.filter((q) => !hasAnswer(q));
     if (unanswered.length > 0 && timeLeft > 0) {
       if (!confirm(`${unanswered.length} question(s) unanswered. Submit anyway?`)) return;
     }
@@ -48,9 +41,14 @@ export default function TakeExam() {
     clearTimeout(timerRef.current);
     try {
       const payload = {
-        answers: questions
-          .filter((q) => answers[q.id]?.trim())
-          .map((q) => ({ question_id: q.id, answer_text: answers[q.id] })),
+          answers: questions
+          .filter((q) => hasAnswer(q))
+          .map((q) => ({
+            question_id: q.id,
+            answer_text: Array.isArray(answers[q.id])
+              ? JSON.stringify(answers[q.id])
+              : answers[q.id],
+          })),
       };
       await submitExam(examId, payload);
       toast.success("Exam submitted! Results ready.");
@@ -58,9 +56,28 @@ export default function TakeExam() {
     } catch (err) {
       toast.error(err.response?.data?.detail || "Submission failed");
     } finally { setSubmitting(false); }
+  }, [answers, examId, hasAnswer, navigate, questions, timeLeft]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!timeLeft) return;
+    if (timeLeft <= 0) {
+      Promise.resolve().then(handleSubmit);
+      return;
+    }
+    timerRef.current = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearTimeout(timerRef.current);
+  }, [handleSubmit, timeLeft]);
+
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, "0");
+    const s = (secs % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
   };
 
-  const answered = Object.values(answers).filter((a) => a?.trim()).length;
+  const answered = Object.values(answers).filter((a) => (
+    Array.isArray(a) ? a.length > 0 : a?.trim()
+  )).length;
   const isLowTime = timeLeft !== null && timeLeft < 120;
 
   return (
@@ -69,21 +86,22 @@ export default function TakeExam() {
       <div style={{
         display: "flex", justifyContent: "space-between",
         alignItems: "center", marginBottom: 24,
-        background: "#fff", borderRadius: 12,
-        padding: "16px 22px", border: "1px solid #e8eaf6",
+        background: "#fff", borderRadius: 8,
+        padding: "16px 22px", border: "1px solid #dfe6f3",
+        boxShadow: CARD_SHADOW,
       }}>
         <div>
-          <p style={{ fontWeight: 700, fontSize: 16, margin: 0, color: "#111" }}>
+          <p style={{ fontWeight: 700, fontSize: 16, margin: 0, color: "#0f172a" }}>
             {exam?.title || "Exam"}
           </p>
-          <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 13, color: "#64748b", margin: "2px 0 0" }}>
             {answered} / {questions.length} answered
           </p>
         </div>
         {timeLeft !== null && (
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
-            background: isLowTime ? "#fef2f2" : "#eef0fd",
+            background: isLowTime ? "#fef2f2" : "#e8eefc",
             border: `1px solid ${isLowTime ? "#fecaca" : "#c7d2fe"}`,
             borderRadius: 8, padding: "8px 16px",
           }}>
@@ -117,9 +135,9 @@ export default function TakeExam() {
             onClick={() => setCurrent(i)}
             style={{
               width: 36, height: 36, borderRadius: "50%",
-              border: `2px solid ${i === current ? BLUE : answers[q.id]?.trim() ? "#16a34a" : "#e8eaf6"}`,
-              background: i === current ? BLUE : answers[q.id]?.trim() ? "#dcfce7" : "#fff",
-              color: i === current ? "#fff" : answers[q.id]?.trim() ? "#16a34a" : "#6b7280",
+              border: `2px solid ${i === current ? BLUE : hasAnswer(q) ? "#16a34a" : "#dfe6f3"}`,
+              background: i === current ? BLUE : hasAnswer(q) ? "#dcfce7" : "#fff",
+              color: i === current ? "#fff" : hasAnswer(q) ? "#16a34a" : "#64748b",
               fontWeight: 700, fontSize: 13, cursor: "pointer",
             }}
           >
@@ -131,53 +149,103 @@ export default function TakeExam() {
       {/* Current question */}
       {questions[current] && (
         <div style={{
-          background: "#fff", border: "1px solid #e8eaf6",
-          borderRadius: 12, padding: "24px",
+          background: "#fff", border: "1px solid #dfe6f3",
+          borderRadius: 8, padding: "24px",
+          boxShadow: CARD_SHADOW,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
             <span style={{
               fontSize: 12, fontWeight: 700, color: BLUE,
-              background: "#eef0fd", padding: "3px 10px", borderRadius: 20,
+              background: "#e8eefc", padding: "3px 10px", borderRadius: 20,
             }}>
               Q{current + 1} of {questions.length}
             </span>
-            <span style={{ fontSize: 13, color: "#6b7280" }}>
+            <span style={{ fontSize: 13, color: "#64748b" }}>
               {questions[current].max_marks} marks
             </span>
           </div>
 
-          <p style={{ fontSize: 15, fontWeight: 600, color: "#111", margin: "0 0 20px", lineHeight: 1.5 }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#0f172a", margin: "0 0 20px", lineHeight: 1.5 }}>
             {questions[current].question_text}
           </p>
 
-          <textarea
-            value={answers[questions[current].id] || ""}
-            onChange={(e) => setAnswers({ ...answers, [questions[current].id]: e.target.value })}
-            placeholder="Type your answer here..."
-            rows={6}
-            style={{
-              width: "100%", padding: "12px 14px",
-              border: "1.5px solid #e8eaf6", borderRadius: 8,
-              fontSize: 14, outline: "none", resize: "vertical",
-              boxSizing: "border-box", lineHeight: 1.6,
-              fontFamily: "inherit",
-            }}
-            onFocus={(e) => (e.target.style.borderColor = BLUE)}
-            onBlur={(e) => (e.target.style.borderColor = "#e8eaf6")}
-          />
+          {questions[current].question_type === "mcq" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(questions[current].options || []).map((option) => {
+                const currentAnswer = answers[questions[current].id];
+                const selected = questions[current].allow_multiple
+                  ? (currentAnswer || []).includes(option)
+                  : currentAnswer === option;
+                return (
+                  <label
+                    key={option}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "22px minmax(0, 1fr)",
+                      gap: 10,
+                      alignItems: "center",
+                      border: `1.5px solid ${selected ? BLUE : "#dfe6f3"}`,
+                      background: selected ? "#e8eefc" : "#fff",
+                      borderRadius: 8,
+                      padding: "12px 14px",
+                      cursor: "pointer",
+                      color: "#0f172a",
+                      fontSize: 14,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <input
+                      type={questions[current].allow_multiple ? "checkbox" : "radio"}
+                      name={`question-${questions[current].id}`}
+                      checked={selected}
+                      onChange={() => {
+                        if (questions[current].allow_multiple) {
+                          const previous = currentAnswer || [];
+                          const next = previous.includes(option)
+                            ? previous.filter((item) => item !== option)
+                            : [...previous, option];
+                          setAnswers({ ...answers, [questions[current].id]: next });
+                        } else {
+                          setAnswers({ ...answers, [questions[current].id]: option });
+                        }
+                      }}
+                      style={{ accentColor: BLUE, width: 16, height: 16 }}
+                    />
+                    <span>{option}</span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <textarea
+              value={answers[questions[current].id] || ""}
+              onChange={(e) => setAnswers({ ...answers, [questions[current].id]: e.target.value })}
+              placeholder="Type your answer here..."
+              rows={6}
+              style={{
+                width: "100%", padding: "12px 14px",
+                border: "1.5px solid #dfe6f3", borderRadius: 8,
+                fontSize: 14, outline: "none", resize: "vertical",
+                boxSizing: "border-box", lineHeight: 1.6,
+                fontFamily: "inherit",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = BLUE)}
+              onBlur={(e) => (e.target.style.borderColor = "#dfe6f3")}
+            />
+          )}
 
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
             <button
               onClick={() => setCurrent((c) => Math.max(0, c - 1))}
               disabled={current === 0}
               style={{
-                padding: "9px 20px", border: "1px solid #e8eaf6",
+                padding: "9px 20px", border: "1px solid #dfe6f3",
                 borderRadius: 8, background: "#fff",
                 cursor: current === 0 ? "not-allowed" : "pointer",
                 fontSize: 14, color: "#374151",
               }}
             >
-              ← Previous
+              Previous
             </button>
 
             {current < questions.length - 1 ? (
@@ -189,7 +257,7 @@ export default function TakeExam() {
                   color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600,
                 }}
               >
-                Next →
+                Next
               </button>
             ) : (
               <button
@@ -212,3 +280,5 @@ export default function TakeExam() {
     </div>
   );
 }
+
+

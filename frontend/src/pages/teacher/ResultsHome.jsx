@@ -26,7 +26,7 @@ export default function ResultsHome() {
 
   useEffect(() => {
     if (!selectedClass) return;
-    setLoading(true);
+    Promise.resolve().then(() => setLoading(true));
     getExamsForClass(selectedClass)
       .then((r) => setExams(r.data))
       .finally(() => setLoading(false));

@@ -4,7 +4,8 @@ import { joinClassroom, getMyClassrooms } from "../../api/student";
 import { Plus, School, ArrowRight, X } from "lucide-react";
 import toast from "react-hot-toast";
 
-const BLUE = "#4361ee";
+const BLUE = "#0f2a5f";
+const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
 
 export default function StudentClassrooms() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function StudentClassrooms() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111" }}>My classrooms</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#0f172a" }}>My classrooms</h1>
         <button
           onClick={() => setShowForm(!showForm)}
           style={{
@@ -50,11 +51,12 @@ export default function StudentClassrooms() {
       {/* Join form */}
       {showForm && (
         <div style={{
-          background: "#fff", border: "1px solid #e8eaf6",
-          borderRadius: 12, padding: "24px", marginBottom: 24,
+          background: "#fff", border: "1px solid #dfe6f3",
+          borderRadius: 8, padding: "24px", marginBottom: 24,
+          boxShadow: CARD_SHADOW,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-            <p style={{ fontWeight: 600, fontSize: 15, margin: 0, color: "#111" }}>
+            <p style={{ fontWeight: 600, fontSize: 15, margin: 0, color: "#0f172a" }}>
               Enter classroom code
             </p>
             <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
@@ -70,7 +72,7 @@ export default function StudentClassrooms() {
               required
               style={{
                 flex: 1, padding: "10px 14px",
-                border: "1.5px solid #e8eaf6",
+                border: "1.5px solid #dfe6f3",
                 borderRadius: 8, fontSize: 16,
                 fontFamily: "monospace", letterSpacing: 4,
                 fontWeight: 700, color: BLUE, outline: "none",
@@ -99,16 +101,17 @@ export default function StudentClassrooms() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
           {classrooms.map((c) => (
             <div key={c.id} style={{
-              background: "#fff", border: "1px solid #e8eaf6",
-              borderRadius: 12, padding: "20px 22px",
+              background: "#fff", border: "1px solid #dfe6f3",
+              borderRadius: 8, padding: "20px 22px",
               cursor: "pointer",
+              boxShadow: CARD_SHADOW,
             }}
               onClick={() => navigate("/student/exams", { state: { classroomId: c.id, classroomName: c.name } })}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div style={{
                   width: 40, height: 40, borderRadius: 10,
-                  background: "#eef0fd", display: "flex",
+                  background: "#e8eefc", display: "flex",
                   alignItems: "center", justifyContent: "center",
                 }}>
                   <School size={18} color={BLUE} />
@@ -116,21 +119,21 @@ export default function StudentClassrooms() {
                 <span style={{
                   fontSize: 11, fontWeight: 600,
                   background: c.active_exams > 0 ? "#dcfce7" : "#f3f4f6",
-                  color: c.active_exams > 0 ? "#16a34a" : "#6b7280",
+                  color: c.active_exams > 0 ? "#16a34a" : "#64748b",
                   padding: "3px 10px", borderRadius: 20,
                 }}>
                   {c.active_exams} active exam{c.active_exams !== 1 ? "s" : ""}
                 </span>
               </div>
-              <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px", color: "#111" }}>{c.name}</p>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 14px" }}>
+              <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px", color: "#0f172a" }}>{c.name}</p>
+              <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 14px" }}>
                 Teacher: {c.teacher_name}
               </p>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{
                   fontFamily: "monospace", fontSize: 13,
                   fontWeight: 700, color: BLUE, letterSpacing: 2,
-                  background: "#eef0fd", padding: "3px 10px", borderRadius: 6,
+                  background: "#e8eefc", padding: "3px 10px", borderRadius: 6,
                 }}>
                   {c.code}
                 </span>
@@ -143,3 +146,4 @@ export default function StudentClassrooms() {
     </div>
   );
 }
+

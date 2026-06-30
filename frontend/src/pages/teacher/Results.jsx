@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getExamResults } from "../../api/exam";
-import { GripVertical } from "lucide-react";
+import toast from "react-hot-toast";
+import { downloadExamResultsCsv, getExamResults, setStudentReview } from "../../api/exam";
+import { CheckCircle, Download, GripVertical, MessageSquare } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell
@@ -40,6 +41,17 @@ const formatDateTime = (value) => {
 };
 
 const percent = (value) => `${Math.round((Number(value) || 0) * 100)}%`;
+
+const displayAnswer = (value) => {
+  if (!value) return "No answer submitted.";
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.join(", ");
+  } catch {
+    // Plain text answers are displayed as-is.
+  }
+  return value;
+};
 
 const htmlEscape = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")
@@ -96,6 +108,8 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [showExportBuilder, setShowExportBuilder] = useState(false);
+  const [reviewDrafts, setReviewDrafts] = useState({});
+  const [savingReviewId, setSavingReviewId] = useState(null);
   const [newColumnName, setNewColumnName] = useState("");
   const [draggedHeadingIndex, setDraggedHeadingIndex] = useState(null);
   const [draggedColumnId, setDraggedColumnId] = useState(null);
@@ -113,7 +127,12 @@ export default function Results() {
   useEffect(() => {
     if (!examId) return;
     getExamResults(examId)
-      .then((r) => setResults(r.data))
+      .then((r) => {
+        setResults(r.data);
+        setReviewDrafts(Object.fromEntries(
+          r.data.map((row) => [row.student_id, row.teacher_review_note || ""])
+        ));
+      })
       .finally(() => setLoading(false));
   }, [examId]);
 
@@ -268,6 +287,54 @@ export default function Results() {
     a.click();
   };
 
+  const handleCsvExport = () => {
+    downloadExamResultsCsv(examId).then((response) => {
+      const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `exam_${examId}_results.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+
+  const updateReviewDraft = (studentId, value) => {
+    setReviewDrafts((prev) => ({ ...prev, [studentId]: value }));
+  };
+
+  const saveStudentReview = (studentId, shouldRequest = true) => {
+    setSavingReviewId(studentId);
+    setStudentReview(examId, studentId, {
+      review_requested: shouldRequest,
+      teacher_review_note: reviewDrafts[studentId] || "",
+    })
+      .then((response) => {
+        const updated = response.data;
+        setResults((prev) => prev.map((row) => (
+          row.student_id === studentId
+            ? {
+              ...row,
+              review_requested: updated.review_requested,
+              teacher_review_note: updated.teacher_review_note,
+              answers: row.answers.map((answer) => ({
+                ...answer,
+                review_requested: updated.review_requested,
+                teacher_review_note: updated.teacher_review_note,
+              })),
+            }
+            : row
+        )));
+        if (!updated.review_requested) {
+          updateReviewDraft(studentId, "");
+        }
+        toast.success(updated.review_requested ? "Review shared with student" : "Review request cleared");
+      })
+      .catch((error) => {
+        toast.error(error.response?.data?.detail || "Could not update review");
+      })
+      .finally(() => setSavingReviewId(null));
+  };
+
   if (loading) return <p style={{ color: "#9ca3af", fontSize: 14 }}>Loading results...</p>;
 
   return (
@@ -279,11 +346,22 @@ export default function Results() {
             onClick={() => navigate(classroomId ? `/teacher/classrooms/${classroomId}/results` : "/teacher/exams")}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14, padding: 0 }}
           >
-            ← Back
+            Back
           </button>
           <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: "#111" }}>Results</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={handleCsvExport}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "#fff", border: "1px solid #bfdbfe",
+              borderRadius: 8, padding: "8px 16px", cursor: "pointer",
+              fontSize: 13, color: "#2563eb",
+            }}
+          >
+            <Download size={15} /> Download CSV
+          </button>
           <button
             onClick={() => setShowExportBuilder((value) => !value)}
             style={{
@@ -595,7 +673,7 @@ export default function Results() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Student", "Marks", "Percentage", "Grade", "Details"].map((h) => (
+                  {["Student", "Marks", "Percentage", "Grade", "Review", "Details"].map((h) => (
                     <th key={h} style={{
                       textAlign: "left", padding: "12px 16px",
                       fontSize: 12, color: "#6b7280", fontWeight: 500,
@@ -607,9 +685,8 @@ export default function Results() {
               </thead>
               <tbody>
                 {results.map((r) => (
-                  <>
+                  <Fragment key={r.student_id}>
                     <tr
-                      key={r.student_id}
                       style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }}
                       onClick={() => setExpanded(expanded === r.student_id ? null : r.student_id)}
                     >
@@ -624,19 +701,130 @@ export default function Results() {
                       </td>
                       <td style={{ padding: "12px 16px" }}>
                         <span style={gradeBadge(r.answers[0]?.grade_band)}>
-                          {r.answers[0]?.grade_band || "—"}
+                          {r.answers[0]?.grade_band || "-"}
                         </span>
                       </td>
+                      <td style={{ padding: "12px 16px" }}>
+                        {r.review_requested ? (
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            background: "#dcfce7",
+                            color: "#166534",
+                            borderRadius: 999,
+                            padding: "4px 9px",
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}>
+                            <CheckCircle size={13} /> Shared
+                          </span>
+                        ) : (
+                          <span style={{ color: "#9ca3af", fontSize: 12 }}>Not requested</span>
+                        )}
+                      </td>
                       <td style={{ padding: "12px 16px", color: "#2563eb", fontSize: 13 }}>
-                        {expanded === r.student_id ? "▲ Hide" : "▼ Show"}
+                        {expanded === r.student_id ? "Hide" : "Show"}
                       </td>
                     </tr>
 
                     {/* Expanded detail row */}
                     {expanded === r.student_id && (
                       <tr key={`${r.student_id}-exp`}>
-                        <td colSpan={5} style={{ padding: "0 16px 14px", background: "#f9fafb" }}>
+                        <td colSpan={6} style={{ padding: "0 16px 14px", background: "#f9fafb" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 10 }}>
+                            <div style={{
+                              background: "#fff",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 8,
+                              padding: "14px 16px",
+                            }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+                                <div>
+                                  <p style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 800, color: "#111", margin: "0 0 4px" }}>
+                                    <MessageSquare size={15} /> Teacher review
+                                  </p>
+                                  <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>
+                                    Share a targeted review note with this student when you want them to revisit their answers.
+                                  </p>
+                                </div>
+                                {r.review_requested && (
+                                  <span style={{
+                                    background: "#dcfce7",
+                                    color: "#166534",
+                                    borderRadius: 999,
+                                    padding: "4px 9px",
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    whiteSpace: "nowrap",
+                                  }}>
+                                    Visible to student
+                                  </span>
+                                )}
+                              </div>
+                              <textarea
+                                value={reviewDrafts[r.student_id] || ""}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={(event) => updateReviewDraft(r.student_id, event.target.value)}
+                                placeholder="Example: Please review questions 2 and 4. Add more detail on the key concepts before our next class."
+                                style={{
+                                  width: "100%",
+                                  minHeight: 82,
+                                  resize: "vertical",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: 8,
+                                  padding: "10px 12px",
+                                  fontSize: 13,
+                                  lineHeight: 1.5,
+                                  color: "#111",
+                                  boxSizing: "border-box",
+                                }}
+                              />
+                              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+                                {r.review_requested && (
+                                  <button
+                                    type="button"
+                                    disabled={savingReviewId === r.student_id}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      saveStudentReview(r.student_id, false);
+                                    }}
+                                    style={{
+                                      border: "1px solid #e5e7eb",
+                                      background: "#fff",
+                                      borderRadius: 8,
+                                      color: "#6b7280",
+                                      padding: "8px 12px",
+                                      cursor: "pointer",
+                                      fontSize: 13,
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Clear review
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={savingReviewId === r.student_id}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    saveStudentReview(r.student_id, true);
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "#111827",
+                                    borderRadius: 8,
+                                    color: "#fff",
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  {savingReviewId === r.student_id ? "Saving..." : "Share review"}
+                                </button>
+                              </div>
+                            </div>
                             {r.answers.map((a, i) => (
                               <div key={i} style={{
                                 background: "#fff", border: "1px solid #e5e7eb",
@@ -647,7 +835,7 @@ export default function Results() {
                                     Question {i + 1}
                                   </span>
                                   <span style={{ fontSize: 13, color: barColor(a.percentage), fontWeight: 600 }}>
-                                    {a.marks.toFixed(1)} / {a.max_marks || "?"} marks · {a.percentage.toFixed(1)}%
+                                    {a.marks.toFixed(1)} / {a.max_marks || "?"} marks - {a.percentage.toFixed(1)}%
                                   </span>
                                 </div>
 
@@ -673,9 +861,34 @@ export default function Results() {
                                     STUDENT ANSWER
                                   </p>
                                   <p style={{ fontSize: 13, color: "#111", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0 }}>
-                                    {a.answer_text || "No answer submitted."}
+                                      {displayAnswer(a.answer_text)}
                                   </p>
                                 </div>
+
+                                {a.question_type === "mcq" && (
+                                  <div style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                                    gap: 10,
+                                    marginBottom: 12,
+                                  }}>
+                                    <div style={{
+                                      background: a.is_correct ? "#dcfce7" : "#fee2e2",
+                                      border: `1px solid ${a.is_correct ? "#bbf7d0" : "#fecaca"}`,
+                                      borderRadius: 8,
+                                      padding: "10px 12px",
+                                      color: a.is_correct ? "#166534" : "#991b1b",
+                                      fontSize: 13,
+                                      fontWeight: 700,
+                                    }}>
+                                      {a.is_correct ? "Correct MCQ answer" : "Incorrect MCQ answer"}
+                                    </div>
+                                    <div style={{ background: "#fff", border: "1px solid #f3f4f6", borderRadius: 8, padding: "10px 12px" }}>
+                                      <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 3px", fontWeight: 700 }}>CORRECT OPTION</p>
+                                      <p style={{ fontSize: 13, color: "#374151", margin: 0 }}>{(a.correct_options || [a.correct_option]).filter(Boolean).join(", ") || "Not set"}</p>
+                                    </div>
+                                  </div>
+                                )}
 
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 12 }}>
                                   <div style={{ background: "#fff", border: "1px solid #f3f4f6", borderRadius: 8, padding: "9px 10px" }}>
@@ -704,9 +917,45 @@ export default function Results() {
                                     Covered: {a.covered_keywords.join(", ")}
                                   </p>
                                 )}
+                                {(Number(a.copy_risk || 0) >= 80 || Number(a.peer_similarity || 0) >= 80) && (
+                                  <div style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                                    gap: 10,
+                                    margin: "10px 0 12px",
+                                  }}>
+                                    {Number(a.copy_risk || 0) >= 80 && (
+                                      <div style={{
+                                        background: "#fef2f2",
+                                        border: "1px solid #fecaca",
+                                        borderRadius: 8,
+                                        padding: "10px 12px",
+                                        color: "#991b1b",
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                      }}>
+                                        High model-answer similarity: {Number(a.copy_risk || 0).toFixed(1)}%
+                                      </div>
+                                    )}
+                                    {Number(a.peer_similarity || 0) >= 80 && (
+                                      <div style={{
+                                        background: "#fff7ed",
+                                        border: "1px solid #fed7aa",
+                                        borderRadius: 8,
+                                        padding: "10px 12px",
+                                        color: "#9a3412",
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                      }}>
+                                        Similar to {a.similar_student_name || "another student"}: {Number(a.peer_similarity || 0).toFixed(1)}%
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                                 {a.suggestions?.map((s, si) => (
                                   <p key={si} style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-                                    → {s}
+                                    {s}
                                   </p>
                                 ))}
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
@@ -715,7 +964,8 @@ export default function Results() {
                                     ["Keywords", percent(a.keyword_score)],
                                     ["Points", percent(a.sentence_score)],
                                     ["Length", percent(a.length_score)],
-                                    ["Copy risk", `${Number(a.copy_risk || 0).toFixed(1)}%`],
+                                    ["Model copy", `${Number(a.copy_risk || 0).toFixed(1)}%`],
+                                    ["Peer similarity", `${Number(a.peer_similarity || 0).toFixed(1)}%`],
                                   ].map(([label, value]) => (
                                     <span key={label} style={{
                                       background: "#f9fafb",
@@ -735,7 +985,7 @@ export default function Results() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

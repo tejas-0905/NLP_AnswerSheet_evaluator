@@ -1,10 +1,4 @@
-import axios from "axios";
-const API = axios.create({ baseURL: "http://localhost:8000" });
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+import API from "./client";
 
 export const uploadAnswerSheet  = (examId, formData) =>
   API.post(`/ocr/upload/${examId}`, formData, {
@@ -16,6 +10,9 @@ export const uploadAnswerSheet  = (examId, formData) =>
 
 export const getOCRSubmission   = (ocrSubmissionId) =>
   API.get(`/ocr/submission/${ocrSubmissionId}`);
+
+export const getOCRReviews      = () =>
+  API.get("/ocr/reviews");
 
 export const correctExtraction  = (ocrSubmissionId, data) =>
   API.patch(`/ocr/correct/${ocrSubmissionId}`, data);

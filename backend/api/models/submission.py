@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Numeric, String, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Boolean, Integer, Text, Numeric, String, DateTime, ForeignKey, JSON
 from sqlalchemy.sql import func
 from api.database import Base
 
@@ -22,6 +22,10 @@ class EvaluationResult(Base):
     sentence_score   = Column(Numeric(4, 3))
     length_score     = Column(Numeric(4, 3))
     copy_risk        = Column(Numeric(5, 2))
+    peer_similarity  = Column(Numeric(5, 2), default=0)
+    similar_submission_id = Column(Integer, ForeignKey("submissions.id", ondelete="SET NULL"))
+    review_requested = Column(Boolean, default=False)
+    teacher_review_note = Column(Text)
     covered_keywords = Column(JSON, default=list)
     missing_keywords = Column(JSON, default=list)
     suggestions      = Column(JSON, default=list)

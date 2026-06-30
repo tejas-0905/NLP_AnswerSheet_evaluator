@@ -16,7 +16,10 @@ export default function VerifyOTP() {
   const [loading, setLoading]   = useState(false);
 
   useEffect(() => {
-    if (countdown <= 0) { setCanResend(true); return; }
+    if (countdown <= 0) {
+      Promise.resolve().then(() => setCanResend(true));
+      return;
+    }
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [countdown]);

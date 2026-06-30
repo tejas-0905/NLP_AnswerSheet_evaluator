@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  BarChart2, Bell, BookOpen, ClipboardCheck, Plus, School,
-  Settings, Trophy, Users
+  Bell, BookOpen, ClipboardCheck, Plus, School,
+  LogOut, Settings, Users
 } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import { getMyClassrooms } from "../../api/classroom";
+import { getMe } from "../../api/auth";
+import { getExamsForClass } from "../../api/exam";
+
+const RECENT_ACTIVITY_CLEARED_KEY = "teacher_recent_activity_cleared_at";
 
 const formatToday = () => new Date().toLocaleDateString("en-IN", {
   weekday: "long",
@@ -69,32 +73,23 @@ function StatTile({ label, value, icon: Icon, color, badge }) {
   );
 }
 
-function QuickAction({ icon: Icon, title, subtitle, onClick, color }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: "#f8fbff",
-        border: "1px solid #dfe6f3",
-        borderRadius: 8,
-        padding: 14,
-        textAlign: "left",
-        cursor: "pointer",
-        minHeight: 72,
-      }}
-    >
-      <Icon size={16} color={color} />
-      <p style={{ margin: "8px 0 2px", color: "#0f172a", fontSize: 13, fontWeight: 800 }}>{title}</p>
-      <p style={{ margin: 0, color: "#64748b", fontSize: 12 }}>{subtitle}</p>
-    </button>
-  );
-}
-
 export default function TeacherDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [classrooms, setClassrooms] = useState([]);
+  const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [recentActivityClearedAt, setRecentActivityClearedAt] = useState(() => {
+    const stored = localStorage.getItem(RECENT_ACTIVITY_CLEARED_KEY);
+    return stored ? Number(stored) : 0;
+  });
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsCleared, setNotificationsCleared] = useState(false);
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    notify_submissions: true,
+    notify_low_scores: true,
+    notify_ocr_review: true,
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -114,6 +109,54 @@ export default function TeacherDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    if (classrooms.length === 0) {
+      Promise.resolve().then(() => {
+        if (mounted) setExams([]);
+      });
+      return () => {
+        mounted = false;
+      };
+    }
+
+    Promise.all(
+      classrooms.map((classroom) =>
+        getExamsForClass(classroom.id)
+          .then((response) => response.data.map((exam) => ({
+            ...exam,
+            classroom_id: classroom.id,
+            classroom_name: classroom.name,
+          })))
+          .catch(() => [])
+      )
+    ).then((groups) => {
+      if (mounted) setExams(groups.flat());
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [classrooms]);
+
+  useEffect(() => {
+    let mounted = true;
+    getMe()
+      .then((response) => {
+        if (!mounted) return;
+        setNotificationPrefs({
+          notify_submissions: response.data.notify_submissions ?? true,
+          notify_low_scores: response.data.notify_low_scores ?? true,
+          notify_ocr_review: response.data.notify_ocr_review ?? true,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const totals = useMemo(() => {
     const students = classrooms.reduce((sum, c) => sum + Number(c.student_count || 0), 0);
     const exams = classrooms.reduce((sum, c) => sum + Number(c.active_exam_count ?? c.exam_count ?? 0), 0);
@@ -122,34 +165,95 @@ export default function TeacherDashboard() {
   }, [classrooms]);
 
   const recentActivity = useMemo(() => {
-    const items = classrooms
-      .slice()
-      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-      .slice(0, 3)
-      .map((c) => ({
+    const classroomItems = classrooms.map((c) => ({
         title: `Classroom ${c.name} created`,
         meta: relativeDate(c.created_at),
+        date: c.created_at,
         color: "#22c55e",
       }));
 
+    const examItems = exams.map((exam) => ({
+      title: `Exam ${exam.title} created`,
+      meta: exam.classroom_name ? `${exam.classroom_name} - ${relativeDate(exam.created_at)}` : relativeDate(exam.created_at),
+      date: exam.created_at,
+      color: "#2563eb",
+    }));
+
+    const items = [...classroomItems, ...examItems]
+      .filter((item) => {
+        const time = item.date ? new Date(item.date).getTime() : 0;
+        return time > recentActivityClearedAt;
+      })
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
     if (totals.students > 0) {
-      items.splice(1, 0, {
+      const latestClassroomTime = Math.max(
+        0,
+        ...classrooms.map((classroom) => (
+          classroom.created_at ? new Date(classroom.created_at).getTime() : 0
+        ))
+      );
+      if (latestClassroomTime > recentActivityClearedAt) {
+        items.splice(1, 0, {
         title: `${totals.students} student${totals.students === 1 ? "" : "s"} joined`,
         meta: "Across your classrooms",
+        date: latestClassroomTime || new Date().toISOString(),
         color: "#6366f1",
       });
+      }
     }
 
-    if (totals.exams === 0) {
+    if (exams.length === 0 && recentActivityClearedAt === 0) {
       items.push({
         title: "No exams published yet",
         meta: "Create your first exam to get started",
+        date: null,
         color: "#a5b4fc",
       });
     }
 
     return items.slice(0, 4);
-  }, [classrooms, totals]);
+  }, [classrooms, exams, recentActivityClearedAt, totals.students]);
+
+  const clearRecentActivity = () => {
+    const now = Date.now();
+    localStorage.setItem(RECENT_ACTIVITY_CLEARED_KEY, String(now));
+    setRecentActivityClearedAt(now);
+  };
+
+  const notificationItems = useMemo(() => {
+    if (notificationsCleared) return [];
+    const items = [];
+
+    if (notificationPrefs.notify_submissions) {
+      if (totals.submissions > 0) {
+        items.push({
+          title: `${totals.submissions} submission${totals.submissions === 1 ? "" : "s"} received`,
+          meta: "Review marks from Results",
+          color: "#2563eb",
+          action: () => navigate("/teacher/results"),
+        });
+      } else {
+        items.push({
+          title: "No submissions yet",
+          meta: "Published exams will appear here after students submit",
+          color: "#94a3b8",
+          action: () => navigate("/teacher/exams"),
+        });
+      }
+    }
+
+    if (notificationPrefs.notify_low_scores) {
+      items.push({
+        title: "Low score alerts are active",
+        meta: "Students below 50 percent are highlighted in Results",
+        color: "#d97706",
+        action: () => navigate("/teacher/results"),
+      });
+    }
+
+    return items;
+  }, [notificationPrefs, notificationsCleared, navigate, totals.submissions]);
 
   const firstName = user?.name?.split(" ")[0] || "Teacher";
 
@@ -169,8 +273,120 @@ export default function TeacherDashboard() {
           <p style={{ color: "#64748b", fontSize: 13, margin: 0 }}>{formatToday()}</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button style={iconButtonStyle} aria-label="Notifications"><Bell size={16} /></button>
-          <button style={iconButtonStyle} aria-label="Settings"><Settings size={16} /></button>
+          <div style={{ position: "relative" }}>
+            <button
+              style={{ ...iconButtonStyle, position: "relative" }}
+              aria-label="Notifications"
+              onClick={() => setShowNotifications((value) => !value)}
+            >
+              <Bell size={16} />
+              {notificationItems.length > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: -4,
+                  right: -4,
+                  minWidth: 17,
+                  height: 17,
+                  borderRadius: 999,
+                  background: "#dc2626",
+                  color: "#fff",
+                  fontSize: 10,
+                  fontWeight: 900,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid #fff",
+                }}>
+                  {notificationItems.length}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <div style={{
+                position: "absolute",
+                right: 0,
+                top: 44,
+                width: 330,
+                background: "#fff",
+                border: "1px solid #dfe6f3",
+                borderRadius: 8,
+                boxShadow: "0 18px 48px rgba(15, 23, 42, 0.16)",
+                zIndex: 30,
+                overflow: "hidden",
+              }}>
+                <div style={{
+                  padding: "14px 16px",
+                  borderBottom: "1px solid #e8edf7",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  <div>
+                    <p style={{ color: "#0f172a", fontSize: 14, fontWeight: 900, margin: 0 }}>Notifications</p>
+                    <p style={{ color: "#64748b", fontSize: 12, margin: "2px 0 0" }}>Project alerts and reminders</p>
+                  </div>
+                  <button
+                    onClick={() => setNotificationsCleared(true)}
+                    style={{ border: 0, background: "transparent", color: "#2563eb", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                  {notificationItems.length === 0 ? (
+                    <div style={{ padding: 18, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                      You are all caught up.
+                    </div>
+                  ) : notificationItems.map((item, index) => (
+                    <button
+                      key={`${item.title}-${index}`}
+                      onClick={() => {
+                        setShowNotifications(false);
+                        item.action();
+                      }}
+                      style={{
+                        width: "100%",
+                        border: 0,
+                        borderBottom: index === notificationItems.length - 1 ? 0 : "1px solid #eef2f7",
+                        background: "#fff",
+                        display: "grid",
+                        gridTemplateColumns: "10px 1fr",
+                        gap: 10,
+                        textAlign: "left",
+                        padding: "13px 16px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: 999, background: item.color, marginTop: 5 }} />
+                      <span>
+                        <span style={{ display: "block", color: "#0f172a", fontSize: 13, fontWeight: 800 }}>{item.title}</span>
+                        <span style={{ display: "block", color: "#64748b", fontSize: 12, marginTop: 2 }}>{item.meta}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <button style={iconButtonStyle} aria-label="Settings" onClick={() => navigate("/teacher/settings")}><Settings size={16} /></button>
+          <button
+            onClick={logout}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              background: "#fff",
+              color: "#475569",
+              border: "1px solid #dfe6f3",
+              borderRadius: 8,
+              padding: "9px 12px",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            <LogOut size={15} /> Sign out
+          </button>
           <button
             onClick={() => navigate("/teacher/exams/create")}
             style={{
@@ -273,10 +489,36 @@ export default function TeacherDashboard() {
           <div style={panelStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <p style={{ color: "#0f172a", fontSize: 14, fontWeight: 800, margin: 0 }}>Recent activity</p>
-              <span style={{ color: "#2563eb", fontSize: 12, fontWeight: 700 }}>Clear</span>
+              <button
+                type="button"
+                onClick={clearRecentActivity}
+                disabled={recentActivity.length === 0}
+                style={{
+                  border: 0,
+                  background: "transparent",
+                  color: recentActivity.length === 0 ? "#94a3b8" : "#2563eb",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: recentActivity.length === 0 ? "not-allowed" : "pointer",
+                  padding: 0,
+                }}
+              >
+                Clear
+              </button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {recentActivity.map((item, index) => (
+              {recentActivity.length === 0 ? (
+                <div style={{
+                  border: "1px dashed #cbd5e1",
+                  borderRadius: 8,
+                  padding: "20px 16px",
+                  color: "#64748b",
+                  fontSize: 13,
+                  textAlign: "center",
+                }}>
+                  No recent activity to show.
+                </div>
+              ) : recentActivity.map((item, index) => (
                 <div key={`${item.title}-${index}`} style={{ display: "grid", gridTemplateColumns: "10px 1fr", gap: 10 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 999, background: item.color, marginTop: 5 }} />
                   <div style={{ borderBottom: index === recentActivity.length - 1 ? 0 : "1px solid #eef2f7", paddingBottom: 12 }}>

@@ -4,7 +4,8 @@ import { uploadAnswerSheet } from "../../api/ocr";
 import { Upload, FileImage, AlertTriangle, CheckCircle, X } from "lucide-react";
 import toast from "react-hot-toast";
 
-const BLUE = "#4361ee";
+const BLUE = "#0f2a5f";
+const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
 
 export default function UploadSheet() {
   const { examId }   = useParams();
@@ -15,7 +16,6 @@ export default function UploadSheet() {
   const [file, setFile]           = useState(null);
   const [preview, setPreview]     = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress]   = useState(0);
   const [result, setResult]       = useState(null);
   const [dragOver, setDragOver]   = useState(false);
 
@@ -48,7 +48,6 @@ export default function UploadSheet() {
   const handleSubmit = async () => {
     if (!file) return;
     setUploading(true);
-    setProgress(0);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -68,8 +67,9 @@ export default function UploadSheet() {
     return (
       <div style={{ maxWidth: 600 }}>
         <div style={{
-          background: "#fff", border: "1px solid #e8eaf6",
-          borderRadius: 14, padding: "32px", textAlign: "center",
+          background: "#fff", border: "1px solid #dfe6f3",
+          borderRadius: 8, padding: "32px", textAlign: "center",
+          boxShadow: CARD_SHADOW,
         }}>
           <div style={{
             width: 64, height: 64, borderRadius: "50%",
@@ -82,10 +82,10 @@ export default function UploadSheet() {
               <CheckCircle size={30} color="#16a34a" />
             )}
           </div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px", color: "#111" }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px", color: "#0f172a" }}>
             {result.needs_review ? "Submitted for review" : "Sheet processed!"}
           </h2>
-          <p style={{ color: "#6b7280", fontSize: 14, margin: "0 0 24px" }}>
+          <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 24px" }}>
             {result.needs_review
               ? "Your teacher needs to verify the OCR text before marks are confirmed."
               : `${result.questions_extracted} questions extracted from ${result.pages_processed} page(s)`}
@@ -93,13 +93,13 @@ export default function UploadSheet() {
 
           {/* Confidence score */}
           <div style={{
-            background: "#f8f9ff", borderRadius: 10,
+            background: "#f8fafc", borderRadius: 10,
             padding: "16px 20px", marginBottom: 20, textAlign: "left",
           }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 10px" }}>
               OCR confidence score
             </p>
-            <div style={{ height: 8, background: "#e8eaf6", borderRadius: 4, marginBottom: 6 }}>
+            <div style={{ height: 8, background: "#dfe6f3", borderRadius: 4, marginBottom: 6 }}>
               <div style={{
                 height: "100%", borderRadius: 4,
                 width: `${result.overall_confidence}%`,
@@ -108,7 +108,7 @@ export default function UploadSheet() {
                 transition: "width 1s ease",
               }} />
             </div>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>
+            <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
               {result.overall_confidence.toFixed(1)}% average confidence
             </p>
           </div>
@@ -148,15 +148,15 @@ export default function UploadSheet() {
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <button
           onClick={() => navigate("/student/exams")}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14, padding: 0 }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 14, padding: 0 }}
         >
-          ← Back
+          Back
         </button>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0f172a" }}>
             Upload answer sheet
           </h1>
-          <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 13, color: "#64748b", margin: "2px 0 0" }}>
             {state?.exam?.title || `Exam ${examId}`}
           </p>
         </div>
@@ -164,15 +164,15 @@ export default function UploadSheet() {
 
       {/* Instructions */}
       <div style={{
-        background: "#eef0fd", border: "1px solid #c7d2fe",
-        borderRadius: 10, padding: "14px 16px", marginBottom: 20,
+        background: "#e8eefc", border: "1px solid #c7d2fe",
+        borderRadius: 8, padding: "14px 16px", marginBottom: 20,
         fontSize: 13, color: "#3730a3",
       }}>
         <p style={{ fontWeight: 600, margin: "0 0 6px" }}>Tips for best results</p>
-        <p style={{ margin: "0 0 4px" }}>• Photograph in good lighting — avoid shadows on the paper</p>
-        <p style={{ margin: "0 0 4px" }}>• Hold the camera directly above, not at an angle</p>
-        <p style={{ margin: "0 0 4px" }}>• Make sure all questions are visible on the sheet</p>
-        <p style={{ margin: 0 }}>• Each question should occupy roughly equal space on the page</p>
+        <p style={{ margin: "0 0 4px" }}>- Photograph in good lighting; avoid shadows on the paper</p>
+        <p style={{ margin: "0 0 4px" }}>- Hold the camera directly above, not at an angle</p>
+        <p style={{ margin: "0 0 4px" }}>- Make sure all questions are visible on the sheet</p>
+        <p style={{ margin: 0 }}>- Each question should occupy roughly equal space on the page</p>
       </div>
 
       {/* Drop zone */}
@@ -183,9 +183,9 @@ export default function UploadSheet() {
         onClick={() => fileRef.current?.click()}
         style={{
           border: `2px dashed ${dragOver ? BLUE : "#c7d2fe"}`,
-          borderRadius: 12, padding: "40px 20px",
+          borderRadius: 8, padding: "40px 20px",
           textAlign: "center", cursor: "pointer",
-          background: dragOver ? "#eef0fd" : "#f8f9ff",
+          background: dragOver ? "#e8eefc" : "#f8fafc",
           transition: "all 0.2s", marginBottom: 16,
         }}
       >
@@ -199,11 +199,11 @@ export default function UploadSheet() {
         {file ? (
           <div>
             <FileImage size={36} color={BLUE} style={{ marginBottom: 10 }} />
-            <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 4px", color: "#111" }}>
+            <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 4px", color: "#0f172a" }}>
               {file.name}
             </p>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
-              {(file.size / 1024 / 1024).toFixed(2)} MB · Click to change
+            <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>
+              {(file.size / 1024 / 1024).toFixed(2)} MB - Click to change
             </p>
           </div>
         ) : (
@@ -213,7 +213,7 @@ export default function UploadSheet() {
               Drag & drop your answer sheet here
             </p>
             <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
-              or click to browse — JPG, PNG, PDF up to 20MB
+              or click to browse - JPG, PNG, PDF up to 20MB
             </p>
           </div>
         )}
@@ -223,7 +223,7 @@ export default function UploadSheet() {
       {preview && (
         <div style={{
           position: "relative", marginBottom: 16,
-          border: "1px solid #e8eaf6", borderRadius: 10, overflow: "hidden",
+          border: "1px solid #dfe6f3", borderRadius: 8, overflow: "hidden",
         }}>
           <img
             src={preview} alt="Answer sheet preview"
@@ -247,10 +247,10 @@ export default function UploadSheet() {
       {/* Upload progress */}
       {uploading && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", marginBottom: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#64748b", marginBottom: 6 }}>
             <span>Processing answer sheet with OCR...</span>
           </div>
-          <div style={{ height: 6, background: "#e8eaf6", borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: 6, background: "#dfe6f3", borderRadius: 3, overflow: "hidden" }}>
             <div style={{
               height: "100%", background: BLUE,
               borderRadius: 3,
@@ -265,7 +265,7 @@ export default function UploadSheet() {
             }
           `}</style>
           <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 6 }}>
-            This may take 20–60 seconds depending on page count
+            This may take 20-60 seconds depending on page count
           </p>
         </div>
       )}
@@ -286,3 +286,5 @@ export default function UploadSheet() {
     </div>
   );
 }
+
+

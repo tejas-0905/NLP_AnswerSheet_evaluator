@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { getMyClassrooms, getExams } from "../../api/student";
 import { Clock, BookOpen, CheckCircle, Edit3, UploadCloud } from "lucide-react";
 
-const BLUE = "#4361ee";
+const BLUE = "#0f2a5f";
+const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
 
 export default function StudentExams() {
   const navigate = useNavigate();
@@ -18,28 +19,28 @@ export default function StudentExams() {
       setClassrooms(r.data);
       if (!selected && r.data.length > 0) setSelected(r.data[0].id);
     });
-  }, []);
+  }, [selected]);
 
   useEffect(() => {
     if (!selected) return;
-    setLoading(true);
+    Promise.resolve().then(() => setLoading(true));
     getExams(selected).then((r) => setExams(r.data)).finally(() => setLoading(false));
   }, [selected]);
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 20px", color: "#111" }}>My exams</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 20px", color: "#0f172a" }}>My exams</h1>
 
       {/* Classroom selector */}
       <div style={{ marginBottom: 24 }}>
-        <label style={{ fontSize: 13, color: "#6b7280", display: "block", marginBottom: 6 }}>Classroom</label>
+        <label style={{ fontSize: 13, color: "#64748b", display: "block", marginBottom: 6 }}>Classroom</label>
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
           style={{
-            padding: "9px 12px", border: "1.5px solid #e8eaf6",
+            padding: "9px 12px", border: "1.5px solid #dfe6f3",
             borderRadius: 8, fontSize: 14, minWidth: 240,
-            background: "#fff", color: "#111",
+            background: "#fff", color: "#0f172a",
           }}
         >
           {classrooms.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -57,15 +58,16 @@ export default function StudentExams() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {exams.map((exam) => (
             <div key={exam.id} style={{
-              background: "#fff", border: "1px solid #e8eaf6",
-              borderRadius: 12, padding: "18px 22px",
+              background: "#fff", border: "1px solid #dfe6f3",
+              borderRadius: 8, padding: "18px 22px",
               display: "flex", alignItems: "center",
               justifyContent: "space-between",
               opacity: exam.attempted ? 0.75 : 1,
+              boxShadow: CARD_SHADOW,
             }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <p style={{ fontWeight: 700, fontSize: 15, margin: 0, color: "#111" }}>{exam.title}</p>
+                  <p style={{ fontWeight: 700, fontSize: 15, margin: 0, color: "#0f172a" }}>{exam.title}</p>
                   {exam.attempted && (
                     <span style={{
                       display: "flex", alignItems: "center", gap: 4,
@@ -76,7 +78,7 @@ export default function StudentExams() {
                     </span>
                   )}
                 </div>
-                <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#6b7280" }}>
+                <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#64748b" }}>
                   <span>{exam.question_count} questions</span>
                   <span>{exam.total_marks} marks</span>
                   {exam.time_limit_minutes && (
@@ -91,7 +93,7 @@ export default function StudentExams() {
                 <button
                   onClick={() => navigate(`/student/results/${exam.id}`)}
                   style={{
-                    background: "#eef0fd", color: BLUE,
+                    background: "#e8eefc", color: BLUE,
                     border: "none", borderRadius: 8,
                     padding: "8px 16px", cursor: "pointer",
                     fontSize: 13, fontWeight: 600,
@@ -117,7 +119,7 @@ export default function StudentExams() {
                     onClick={() => navigate(`/student/upload-sheet/${exam.id}`, { state: { exam } })}
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
-                      background: "#eef0fd", color: BLUE,
+                      background: "#e8eefc", color: BLUE,
                       border: "none", borderRadius: 8,
                       padding: "8px 14px", cursor: "pointer",
                       fontSize: 13, fontWeight: 600,
@@ -134,3 +136,5 @@ export default function StudentExams() {
     </div>
   );
 }
+
+

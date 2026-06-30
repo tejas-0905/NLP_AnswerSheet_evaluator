@@ -189,7 +189,7 @@ code {
     width: 100% !important;
     flex-basis: auto !important;
     border-right: 0 !important;
-    border-bottom: 1px solid #e8eaf6 !important;
+    border-bottom: 1px solid #dfe6f3 !important;
     padding: 16px 0 !important;
   }
 
@@ -204,6 +204,40 @@ code {
   .student-main input,
   .student-main textarea {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 980px) {
+  .exam-builder-page {
+    margin: -24px -16px !important;
+  }
+
+  .exam-builder-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .exam-builder-main {
+    padding: 20px 14px 28px !important;
+  }
+
+  .exam-builder-side {
+    border-left: 0 !important;
+    border-top: 1px solid #dbe3ef !important;
+  }
+
+  .teacher-settings-grid,
+  .teacher-settings-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .create-exam-top-grid,
+  .create-exam-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .create-exam-editor-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
   }
 }
 

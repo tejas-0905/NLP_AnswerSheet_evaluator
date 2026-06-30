@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getMyResults } from "../../api/student";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
-const BLUE = "#4361ee";
+const BLUE = "#0f2a5f";
+const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
 
 const gradeBadge = (band) => {
   const map = {
@@ -12,14 +13,25 @@ const gradeBadge = (band) => {
     "Needs improvement": { bg: "#fef9c3", color: "#ca8a04" },
     "At risk": { bg: "#fee2e2", color: "#dc2626" },
   };
-  return map[band] || { bg: "#f3f4f6", color: "#6b7280" };
+  return map[band] || { bg: "#f3f4f6", color: "#64748b" };
 };
 
 const pctColor = (p) => p >= 85 ? "#16a34a" : p >= 70 ? "#2563eb" : p >= 50 ? "#d97706" : "#dc2626";
 
+const displayAnswer = (value) => {
+  if (!value) return "No answer submitted.";
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.join(", ");
+  } catch {
+    // Descriptive answers are plain text.
+  }
+  return value;
+};
+
 const ScoreBar = ({ label, value }) => (
   <div style={{ marginBottom: 10 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748b", marginBottom: 4 }}>
       <span>{label}</span><span>{Math.round(value * 100)}%</span>
     </div>
     <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
@@ -49,25 +61,27 @@ export default function MyResults() {
     name: `Q${i + 1}`,
     score: parseFloat(q.percentage.toFixed(1)),
   }));
+  const teacherReviewNote = data.questions.find((q) => q.review_requested && q.teacher_review_note)?.teacher_review_note;
 
   return (
     <div style={{ maxWidth: 780 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <button
           onClick={() => navigate("/student/exams")}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14, padding: 0 }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 14, padding: 0 }}
         >
-          ← Back
+          Back
         </button>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111" }}>My results</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#0f172a" }}>My results</h1>
       </div>
 
       {/* Overall score card */}
       <div style={{
-        background: BLUE, borderRadius: 14,
+        background: BLUE, borderRadius: 8,
         padding: "24px 28px", marginBottom: 20,
         display: "flex", justifyContent: "space-between", alignItems: "center",
         color: "#fff",
+        boxShadow: "0 14px 30px rgba(15, 42, 95, 0.18)",
       }}>
         <div>
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", margin: "0 0 4px" }}>Overall score</p>
@@ -94,19 +108,35 @@ export default function MyResults() {
         </div>
       </div>
 
+      {teacherReviewNote && (
+        <div style={{
+          background: "#fff7ed",
+          border: "1px solid #fed7aa",
+          borderRadius: 8,
+          padding: "14px 16px",
+          marginBottom: 20,
+          color: "#9a3412",
+          boxShadow: CARD_SHADOW,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 800, margin: "0 0 5px" }}>Teacher review</p>
+          <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{teacherReviewNote}</p>
+        </div>
+      )}
+
       {/* Score chart */}
       <div style={{
-        background: "#fff", border: "1px solid #e8eaf6",
-        borderRadius: 12, padding: "20px 24px", marginBottom: 20,
+        background: "#fff", border: "1px solid #dfe6f3",
+        borderRadius: 8, padding: "20px 24px", marginBottom: 20,
+        boxShadow: CARD_SHADOW,
       }}>
-        <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 16px", color: "#111" }}>
+        <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 16px", color: "#0f172a" }}>
           Score per question
         </p>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={chartData} barCategoryGap="35%">
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#6b7280" }} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: "#6b7280" }} unit="%" />
+            <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: "#64748b" }} unit="%" />
             <Tooltip formatter={(v) => [`${v}%`, "Score"]} />
             <Bar dataKey="score" radius={[5, 5, 0, 0]}>
               {chartData.map((e, i) => (
@@ -124,8 +154,9 @@ export default function MyResults() {
           const isOpen = expanded === i;
           return (
             <div key={i} style={{
-              background: "#fff", border: "1px solid #e8eaf6",
-              borderRadius: 12, overflow: "hidden",
+              background: "#fff", border: "1px solid #dfe6f3",
+              borderRadius: 8, overflow: "hidden",
+              boxShadow: CARD_SHADOW,
             }}>
               {/* Header */}
               <div
@@ -133,20 +164,20 @@ export default function MyResults() {
                 style={{
                   display: "flex", justifyContent: "space-between",
                   alignItems: "center", padding: "16px 20px",
-                  cursor: "pointer", background: isOpen ? "#f8f9ff" : "#fff",
+                  cursor: "pointer", background: isOpen ? "#f8fafc" : "#fff",
                 }}
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                     <span style={{
                       width: 24, height: 24, borderRadius: 6,
-                      background: "#eef0fd", color: BLUE,
+                      background: "#e8eefc", color: BLUE,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 12, fontWeight: 700, flexShrink: 0,
                     }}>
                       {i + 1}
                     </span>
-                    <p style={{ fontWeight: 600, fontSize: 14, margin: 0, color: "#111" }}>
+                    <p style={{ fontWeight: 600, fontSize: 14, margin: 0, color: "#0f172a" }}>
                       {q.question_text.length > 80 ? q.question_text.slice(0, 80) + "..." : q.question_text}
                     </p>
                   </div>
@@ -158,7 +189,7 @@ export default function MyResults() {
                   <span style={{ ...badge, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
                     {q.grade_band}
                   </span>
-                  <span style={{ color: "#9ca3af", fontSize: 13 }}>{isOpen ? "▲" : "▼"}</span>
+                  <span style={{ color: "#9ca3af", fontSize: 13 }}>{isOpen ? "Up" : "Down"}</span>
                 </div>
               </div>
 
@@ -168,22 +199,56 @@ export default function MyResults() {
 
                   {/* Your answer */}
                   <div style={{ marginTop: 16, marginBottom: 16 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", margin: "0 0 6px" }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "#64748b", margin: "0 0 6px" }}>
                       YOUR ANSWER
                     </p>
                     <p style={{
                       fontSize: 14, color: "#374151", margin: 0,
-                      background: "#f8f9ff", borderRadius: 8,
+                      background: "#f8fafc", borderRadius: 8,
                       padding: "12px 14px", lineHeight: 1.6,
-                      border: "1px solid #e8eaf6",
+                      border: "1px solid #dfe6f3",
                     }}>
-                      {q.answer_text}
+                      {displayAnswer(q.answer_text)}
                     </p>
                   </div>
 
+                  {q.question_type === "mcq" && (
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                      gap: 10,
+                      marginBottom: 16,
+                    }}>
+                      <div style={{
+                        background: q.is_correct ? "#dcfce7" : "#fee2e2",
+                        border: `1px solid ${q.is_correct ? "#bbf7d0" : "#fecaca"}`,
+                        borderRadius: 8,
+                        padding: "11px 12px",
+                        color: q.is_correct ? "#166534" : "#991b1b",
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}>
+                        {q.is_correct ? "Correct answer" : "Incorrect answer"}
+                      </div>
+                      <div style={{
+                        background: "#f8fafc",
+                        border: "1px solid #dfe6f3",
+                        borderRadius: 8,
+                        padding: "11px 12px",
+                      }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: "#64748b", margin: "0 0 4px" }}>
+                          CORRECT OPTION
+                        </p>
+                        <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>
+                          {(q.correct_options || [q.correct_option]).filter(Boolean).join(", ") || "Not available"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Score breakdown bars */}
                   <div style={{ marginBottom: 16 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", margin: "0 0 10px" }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "#64748b", margin: "0 0 10px" }}>
                       SCORE BREAKDOWN
                     </p>
                     <ScoreBar label="Semantic accuracy" value={q.semantic_score} />
@@ -199,7 +264,7 @@ export default function MyResults() {
                       borderRadius: 8, padding: "10px 14px", marginBottom: 14,
                       fontSize: 13, color: "#dc2626",
                     }}>
-                      ⚠ High similarity to model answer ({q.copy_risk.toFixed(0)}%)
+                      High similarity to model answer ({q.copy_risk.toFixed(0)}%)
                     </div>
                   )}
 
@@ -241,13 +306,13 @@ export default function MyResults() {
 
                   {/* Suggestions */}
                   {q.suggestions.length > 0 && (
-                    <div style={{ background: "#f8f9ff", borderRadius: 8, padding: "12px 14px", border: "1px solid #e8eaf6" }}>
+                    <div style={{ background: "#f8fafc", borderRadius: 8, padding: "12px 14px", border: "1px solid #dfe6f3" }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: BLUE, margin: "0 0 8px" }}>
                         SUGGESTIONS
                       </p>
                       {q.suggestions.map((s, si) => (
                         <p key={si} style={{ fontSize: 13, color: "#374151", margin: si === 0 ? 0 : "6px 0 0" }}>
-                          → {s}
+                          {s}
                         </p>
                       ))}
                     </div>
@@ -261,3 +326,5 @@ export default function MyResults() {
     </div>
   );
 }
+
+

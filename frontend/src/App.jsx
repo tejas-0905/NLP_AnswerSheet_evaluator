@@ -16,6 +16,7 @@ import ExamDetail    from "./pages/teacher/ExamDetail";
 import Results       from "./pages/teacher/Results";
 import ResultsHome   from "./pages/teacher/ResultsHome";
 import Leaderboard   from "./pages/teacher/Leaderboard";
+import TeacherSettings from "./pages/teacher/Settings";
 
 import StudentLayout  from "./pages/student/Layout";
 import StudentDash    from "./pages/student/Dashboard";
@@ -24,7 +25,6 @@ import StudentExams   from "./pages/student/Exams";
 import TakeExam       from "./pages/student/TakeExam";
 import MyResults      from "./pages/student/MyResults";
 import Students       from "./pages/teacher/Students";
-import OCRReview      from "./pages/teacher/OCRReview.jsx";
 import UploadSheet    from "./pages/student/UploadSheet";
 
 function ProtectedRoute({ children, role }) {
@@ -62,7 +62,7 @@ function AppRoutes() {
           <Route path="results/:examId"     element={<Results />} />
           <Route path="leaderboard"         element={<Leaderboard />} />
           <Route path="students"            element={<Students />} />
-          <Route path="ocr-review/:ocrSubmissionId" element={<OCRReview />} />
+          <Route path="settings"            element={<TeacherSettings />} />
         </Route>
         <Route path="/student" element={
           <ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>

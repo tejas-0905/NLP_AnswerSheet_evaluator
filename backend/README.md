@@ -29,10 +29,20 @@ An NLP-powered answer evaluation app built with Streamlit and Sentence Transform
 
 ```text
 .
-|-- main.py             # Streamlit evaluator app
-|-- api/                # FastAPI auth API
-|-- evaluator.py        # Scoring and feedback logic
-|-- preprocessing.py    # Text cleaning and tokenization helpers
+|-- main.py                    # Streamlit evaluator app
+|-- evaluator.py               # Scoring and feedback logic
+|-- preprocessing.py           # Text cleaning and tokenization helpers
+|-- config.py                  # Environment-based settings
+|-- api/
+|   |-- main.py                # FastAPI app entry point
+|   |-- db_startup.py          # Startup table/column initialization
+|   |-- database.py            # SQLAlchemy engine/session setup
+|   |-- dependencies.py        # Shared FastAPI dependencies
+|   |-- models/                # SQLAlchemy database models
+|   |-- schemas/               # Pydantic request/response schemas
+|   |-- routers/               # API route handlers
+|   `-- services/              # Auth, email, OCR, similarity services
+|       `-- ocr/               # OCR engine helpers split by provider/task
 |-- requirements.txt
 `-- README.md
 ```

@@ -6,8 +6,6 @@ import { UserX, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import ClassroomTabs from "../../components/ClassroomTabs";
 
-const BLUE = "#4361ee";
-
 export default function Students() {
   const { classroomId } = useParams();
   const [classrooms, setClassrooms]     = useState([]);
@@ -29,7 +27,7 @@ export default function Students() {
 
   useEffect(() => {
     if (!selected) return;
-    setLoading(true);
+    Promise.resolve().then(() => setLoading(true));
     getStudents(selected)
       .then((r) => setStudents(r.data))
       .finally(() => setLoading(false));

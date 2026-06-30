@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr
 
 from api.dependencies import get_db, get_current_user
 from api.models.user import User, OTPVerification
-from api.schemas.auth import RegisterRequest, LoginRequest, OTPRequest, TokenResponse
+from api.schemas.auth import RegisterRequest, LoginRequest, OTPRequest, TokenResponse, UserSettingsUpdate
 from api.services.auth_service import (
     hash_password, verify_password,
     create_access_token, generate_otp, otp_expiry,
@@ -125,4 +125,56 @@ def get_me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "full_name": current_user.full_name,
         "role": current_user.role,
+        "institution": current_user.institution or "",
+        "department": current_user.department or "",
+        "bio": current_user.bio or "",
+        "notify_submissions": current_user.notify_submissions,
+        "notify_low_scores": current_user.notify_low_scores,
+        "notify_ocr_review": current_user.notify_ocr_review,
+        "default_question_marks": current_user.default_question_marks or 10,
+        "release_marks_immediately": current_user.release_marks_immediately,
+    }
+
+
+@router.patch("/me/settings")
+def update_my_settings(
+    payload: UserSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.default_question_marks < 1 or payload.default_question_marks > 100:
+        raise HTTPException(status_code=400, detail="Default marks must be between 1 and 100")
+
+    full_name = payload.full_name.strip()
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Full name is required")
+
+    current_user.full_name = full_name
+    current_user.institution = (payload.institution or "").strip()
+    current_user.department = (payload.department or "").strip()
+    current_user.bio = (payload.bio or "").strip()
+    current_user.notify_submissions = payload.notify_submissions
+    current_user.notify_low_scores = payload.notify_low_scores
+    current_user.notify_ocr_review = payload.notify_ocr_review
+    current_user.default_question_marks = payload.default_question_marks
+    current_user.release_marks_immediately = payload.release_marks_immediately
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "message": "Settings updated",
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "role": current_user.role,
+            "institution": current_user.institution or "",
+            "department": current_user.department or "",
+            "bio": current_user.bio or "",
+            "notify_submissions": current_user.notify_submissions,
+            "notify_low_scores": current_user.notify_low_scores,
+            "notify_ocr_review": current_user.notify_ocr_review,
+            "default_question_marks": current_user.default_question_marks or 10,
+            "release_marks_immediately": current_user.release_marks_immediately,
+        },
     }

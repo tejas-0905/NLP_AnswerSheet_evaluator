@@ -44,7 +44,9 @@ export default function ExamDetail() {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
+    Promise.resolve().then(() => {
+      if (isMounted) setLoading(true);
+    });
     getExamDetail(examId)
       .then((response) => {
         if (isMounted) setExam(response.data);
@@ -206,7 +208,46 @@ export default function ExamDetail() {
               </p>
             </div>
 
-            <div style={{
+            {question.question_type === "mcq" ? (
+              <div style={{
+                background: "#f9fafb",
+                border: "1px solid #f3f4f6",
+                borderRadius: 8,
+                padding: "12px 14px",
+              }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", margin: "0 0 8px" }}>
+                  OPTIONS
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(question.options || []).map((option) => {
+                    const isCorrect = (question.correct_options || [question.correct_option]).includes(option);
+                    return (
+                    <div
+                      key={option}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        background: isCorrect ? "#dcfce7" : "#fff",
+                        border: `1px solid ${isCorrect ? "#bbf7d0" : "#e5e7eb"}`,
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        color: isCorrect ? "#166534" : "#374151",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>{option}</span>
+                      {isCorrect && <span style={{ fontWeight: 700 }}>Correct</span>}
+                    </div>
+                  );})}
+                </div>
+                <p style={{ color: "#64748b", fontSize: 12, margin: "10px 0 0" }}>
+                  {question.allow_multiple ? "Multiple answers allowed" : "Single answer"}
+                </p>
+              </div>
+            ) : (
+              <div style={{
               background: "#f9fafb",
               border: "1px solid #f3f4f6",
               borderRadius: 8,
@@ -220,8 +261,9 @@ export default function ExamDetail() {
                 {question.model_answer}
               </p>
             </div>
+            )}
 
-            {question.required_concepts && (
+            {question.question_type !== "mcq" && question.required_concepts && (
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", margin: "0 0 7px" }}>
                   REQUIRED CONCEPTS

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.sql import func
 from api.database import Base
 
@@ -16,8 +16,19 @@ class Question(Base):
     __tablename__ = "questions"
     id                = Column(Integer, primary_key=True, index=True)
     exam_id           = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    question_type     = Column(String(30), nullable=False, default="descriptive")
     question_text     = Column(Text, nullable=False)
-    model_answer      = Column(Text, nullable=False)
+    model_answer      = Column(Text, nullable=True)
     max_marks         = Column(Integer, nullable=False)
     required_concepts = Column(Text)
+    options           = Column(JSON, nullable=True)
+    correct_option    = Column(String(255), nullable=True)
+    correct_options   = Column(JSON, nullable=True)
+    allow_multiple    = Column(Boolean, default=False)
     order_index       = Column(Integer, default=0)
+
+class ExamAccess(Base):
+    __tablename__ = "exam_access"
+    id         = Column(Integer, primary_key=True, index=True)
+    exam_id    = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)

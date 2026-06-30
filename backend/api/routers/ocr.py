@@ -5,10 +5,12 @@ from pydantic import BaseModel
 
 from api.dependencies import get_db, get_current_user
 from api.models.user import User
-from api.models.exam import Exam, Question
+from api.models.classroom import Classroom
+from api.models.exam import Exam, ExamAccess, Question
 from api.models.submission import Submission, EvaluationResult
 from api.models.ocr import OCRSubmission, OCRQuestionExtraction
 from api.services.ocr_service import correct_ocr_text_with_context, process_answer_sheet
+from api.services.similarity_service import update_peer_similarity
 from evaluator import evaluate_answer, parse_required_concepts
 
 router = APIRouter(prefix="/ocr", tags=["OCR"])
@@ -16,6 +18,61 @@ router = APIRouter(prefix="/ocr", tags=["OCR"])
 UPLOAD_DIR = "uploads/answer_sheets"
 MIN_AUTO_EVALUATE_CONFIDENCE = 55
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def teacher_owns_ocr_submission(db: Session, teacher_id: int, ocr_sub: OCRSubmission) -> bool:
+    exam = db.query(Exam).filter(Exam.id == ocr_sub.exam_id).first()
+    if not exam:
+        return False
+    classroom = db.query(Classroom).filter(
+        Classroom.id == exam.classroom_id,
+        Classroom.teacher_id == teacher_id,
+    ).first()
+    return classroom is not None
+
+
+def student_can_access_exam(db: Session, exam_id: int, student_id: int) -> bool:
+    access_rows = db.query(ExamAccess).filter(ExamAccess.exam_id == exam_id).all()
+    if not access_rows:
+        return True
+    return any(row.student_id == student_id for row in access_rows)
+
+
+@router.get("/reviews")
+def list_ocr_reviews(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "teacher":
+        raise HTTPException(403, "Only teachers can view OCR reviews")
+
+    rows = db.query(OCRSubmission).order_by(OCRSubmission.created_at.desc()).all()
+
+    reviews = []
+    for item in rows:
+        if not teacher_owns_ocr_submission(db, current_user.id, item):
+            continue
+        exam = db.query(Exam).filter(Exam.id == item.exam_id).first()
+        student = db.query(User).filter(User.id == item.student_id).first()
+        low_confidence_count = db.query(OCRQuestionExtraction).filter(
+            OCRQuestionExtraction.ocr_submission_id == item.id,
+            OCRQuestionExtraction.confidence < MIN_AUTO_EVALUATE_CONFIDENCE,
+            OCRQuestionExtraction.is_corrected == False,
+        ).count()
+        reviews.append({
+            "id": item.id,
+            "exam_id": item.exam_id,
+            "exam_title": exam.title if exam else "Deleted exam",
+            "student_id": item.student_id,
+            "student_name": student.full_name if student else "Unknown student",
+            "status": item.status,
+            "confidence_score": float(item.confidence_score or 0),
+            "low_confidence_count": low_confidence_count,
+            "original_filename": item.original_filename,
+            "created_at": item.created_at,
+        })
+
+    return reviews
 
 
 @router.post("/upload/{exam_id}")
@@ -31,6 +88,8 @@ async def upload_answer_sheet(
     exam = db.query(Exam).filter(Exam.id == exam_id, Exam.is_active == True).first()
     if not exam:
         raise HTTPException(404, "Exam not found or not active")
+    if not student_can_access_exam(db, exam_id, current_user.id):
+        raise HTTPException(403, "You are not assigned to this exam")
 
     existing = db.query(OCRSubmission).filter(
         OCRSubmission.student_id == current_user.id,
@@ -202,6 +261,7 @@ async def upload_answer_sheet(
         result_row.sentence_score = ev["scores"]["Sentence"]
         result_row.length_score = ev["scores"]["Length"]
         result_row.copy_risk = ev["copied_answer_risk"]
+        update_peer_similarity(db, sub, result_row)
         result_row.covered_keywords = ev["covered_keywords"]
         result_row.missing_keywords = ev["missing_keywords"]
         result_row.suggestions = ev["suggestions"]
@@ -237,19 +297,36 @@ def get_ocr_submission(
     ).first()
     if not ocr_sub:
         raise HTTPException(404, "Submission not found")
+    if current_user.role == "teacher" and not teacher_owns_ocr_submission(db, current_user.id, ocr_sub):
+        raise HTTPException(403, "Submission not found or not yours")
+    if current_user.role == "student" and ocr_sub.student_id != current_user.id:
+        raise HTTPException(403, "Submission not found")
 
     extractions = db.query(OCRQuestionExtraction).filter(
         OCRQuestionExtraction.ocr_submission_id == ocr_submission_id
     ).all()
+    exam = db.query(Exam).filter(Exam.id == ocr_sub.exam_id).first()
+    student = db.query(User).filter(User.id == ocr_sub.student_id).first()
+    question_map = {
+        question.id: question
+        for question in db.query(Question).filter(
+            Question.id.in_([item.question_id for item in extractions])
+        ).all()
+    }
 
     return {
         "id": ocr_sub.id,
+        "exam_id": ocr_sub.exam_id,
+        "exam_title": exam.title if exam else "Deleted exam",
+        "student_id": ocr_sub.student_id,
+        "student_name": student.full_name if student else "Unknown student",
         "status": ocr_sub.status,
         "confidence_score": float(ocr_sub.confidence_score or 0),
         "original_filename": ocr_sub.original_filename,
         "extractions": [
             {
                 "question_id": e.question_id,
+                "question_text": question_map[e.question_id].question_text if e.question_id in question_map else "",
                 "extracted_text": e.corrected_text if e.is_corrected else e.extracted_text,
                 "confidence": float(e.confidence or 0),
                 "is_corrected": e.is_corrected,
@@ -290,6 +367,8 @@ def correct_extraction(
     ocr_sub = db.query(OCRSubmission).filter(
         OCRSubmission.id == ocr_submission_id
     ).first()
+    if not ocr_sub or not teacher_owns_ocr_submission(db, current_user.id, ocr_sub):
+        raise HTTPException(403, "Submission not found or not yours")
 
     sub = db.query(Submission).filter(
         Submission.question_id == payload.question_id,
@@ -339,6 +418,7 @@ def correct_extraction(
     ev_row.sentence_score = ev["scores"]["Sentence"]
     ev_row.length_score = ev["scores"]["Length"]
     ev_row.copy_risk = ev["copied_answer_risk"]
+    update_peer_similarity(db, sub, ev_row)
     ev_row.covered_keywords = ev["covered_keywords"]
     ev_row.missing_keywords = ev["missing_keywords"]
     ev_row.suggestions = ev["suggestions"]

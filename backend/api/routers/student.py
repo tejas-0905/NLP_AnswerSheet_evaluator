@@ -1,14 +1,36 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from api.dependencies import get_db, get_current_user
 from api.models.user import User
 from api.models.classroom import Classroom, ClassroomMember
-from api.models.exam import Exam, Question
+from api.models.exam import Exam, ExamAccess, Question
 from api.models.submission import Submission, EvaluationResult
+from api.services.similarity_service import similar_student_name, update_peer_similarity
 from evaluator import evaluate_answer, parse_required_concepts
 
 router = APIRouter(prefix="/student", tags=["Student"])
+
+
+def student_can_access_exam(db: Session, exam_id: int, student_id: int) -> bool:
+    access_rows = db.query(ExamAccess).filter(ExamAccess.exam_id == exam_id).all()
+    if not access_rows:
+        return True
+    return any(row.student_id == student_id for row in access_rows)
+
+
+def parse_mcq_answer(answer_text: str):
+    try:
+        value = json.loads(answer_text)
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        if isinstance(value, str):
+            return [value]
+    except Exception:
+        pass
+    return [answer_text]
 
 
 # ── join classroom ──────────────────────────────────────────
@@ -95,11 +117,14 @@ def get_exams(
 
     result = []
     for e in exams:
+        if not student_can_access_exam(db, e.id, current_user.id):
+            continue
         questions = db.query(Question).filter(Question.exam_id == e.id).all()
         attempted = False
         if questions:
+            q_ids = [question.id for question in questions]
             sub = db.query(Submission).filter(
-                Submission.question_id == questions[0].id,
+                Submission.question_id.in_(q_ids),
                 Submission.student_id == current_user.id,
             ).first()
             attempted = sub is not None
@@ -125,6 +150,8 @@ def get_questions(
     exam = db.query(Exam).filter(Exam.id == exam_id, Exam.is_active == True).first()
     if not exam:
         raise HTTPException(404, "Exam not found or not active")
+    if not student_can_access_exam(db, exam_id, current_user.id):
+        raise HTTPException(403, "You are not assigned to this exam")
 
     questions = db.query(Question).filter(
         Question.exam_id == exam_id
@@ -133,8 +160,11 @@ def get_questions(
     return [
         {
             "id": q.id,
+            "question_type": q.question_type,
             "question_text": q.question_text,
             "max_marks": q.max_marks,
+            "options": q.options or [],
+            "allow_multiple": q.allow_multiple,
             "order_index": q.order_index,
         }
         for q in questions
@@ -156,15 +186,33 @@ def submit_exam(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from sentence_transformers import SentenceTransformer
-    try:
-        model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
-    except Exception:
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+    question_ids = [item.question_id for item in payload.answers]
+    exam = db.query(Exam).filter(Exam.id == exam_id, Exam.is_active == True).first()
+    if not exam:
+        raise HTTPException(404, "Exam not found or not active")
+    if not student_can_access_exam(db, exam_id, current_user.id):
+        raise HTTPException(403, "You are not assigned to this exam")
+
+    submitted_questions = db.query(Question).filter(
+        Question.id.in_(question_ids),
+        Question.exam_id == exam_id,
+    ).all()
+    question_map = {question.id: question for question in submitted_questions}
+    needs_nlp = any(
+        question.question_type != "mcq"
+        for question in submitted_questions
+    )
+    model = None
+    if needs_nlp:
+        from sentence_transformers import SentenceTransformer
+        try:
+            model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+        except Exception:
+            model = SentenceTransformer("all-MiniLM-L6-v2")
 
     results = []
     for item in payload.answers:
-        question = db.query(Question).filter(Question.id == item.question_id).first()
+        question = question_map.get(item.question_id)
         if not question:
             continue
 
@@ -184,14 +232,36 @@ def submit_exam(
         db.commit()
         db.refresh(sub)
 
-        concepts = parse_required_concepts(question.required_concepts or "")
-        ev = evaluate_answer(
-            model_answer=question.model_answer,
-            student_answer=item.answer_text,
-            model=model,
-            max_marks=question.max_marks,
-            required_concepts=concepts,
-        )
+        if question.question_type == "mcq":
+            selected_options = sorted(parse_mcq_answer(item.answer_text))
+            correct_options = sorted(question.correct_options or ([question.correct_option] if question.correct_option else []))
+            is_correct = selected_options == correct_options
+            marks = question.max_marks if is_correct else 0
+            percentage = 100 if is_correct else 0
+            ev = {
+                "marks": marks,
+                "percentage": percentage,
+                "grade_band": "Excellent" if is_correct else "At risk",
+                "scores": {
+                    "Semantic": 1 if is_correct else 0,
+                    "Keyword": 1 if is_correct else 0,
+                    "Sentence": 1 if is_correct else 0,
+                    "Length": 1 if is_correct else 0,
+                },
+                "copied_answer_risk": 0,
+                "covered_keywords": correct_options if is_correct else selected_options,
+                "missing_keywords": [] if is_correct else correct_options,
+                "suggestions": [] if is_correct else ["Review the correct option."],
+            }
+        else:
+            concepts = parse_required_concepts(question.required_concepts or "")
+            ev = evaluate_answer(
+                model_answer=question.model_answer or "",
+                student_answer=item.answer_text,
+                model=model,
+                max_marks=question.max_marks,
+                required_concepts=concepts,
+            )
 
         result_row = EvaluationResult(
             submission_id=sub.id,
@@ -207,6 +277,7 @@ def submit_exam(
             missing_keywords=ev["missing_keywords"],
             suggestions=ev["suggestions"],
         )
+        update_peer_similarity(db, sub, result_row)
         db.add(result_row)
         db.commit()
         results.append({"question_id": item.question_id, "marks": ev["marks"]})
@@ -221,10 +292,17 @@ def my_results(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    questions = db.query(Question).filter(Question.exam_id == exam_id).all()
+    questions = db.query(Question).filter(
+        Question.exam_id == exam_id
+    ).order_by(Question.order_index).all()
+    q_ids = [question.id for question in questions]
+    attempted = db.query(Submission).filter(
+        Submission.question_id.in_(q_ids),
+        Submission.student_id == current_user.id,
+    ).first()
     output = []
     total_marks = 0
-    total_max = 0
+    total_max = sum(q.max_marks for q in questions) if attempted else 0
 
     for q in questions:
         sub = db.query(Submission).filter(
@@ -232,19 +310,85 @@ def my_results(
             Submission.student_id == current_user.id,
         ).first()
         if not sub:
+            if attempted:
+                output.append({
+                    "question_id": q.id,
+                    "question_type": q.question_type,
+                    "question_text": q.question_text,
+            "answer_text": "",
+            "correct_option": q.correct_option,
+            "correct_options": q.correct_options or ([q.correct_option] if q.correct_option else []),
+            "allow_multiple": q.allow_multiple,
+            "is_correct": False if q.question_type == "mcq" else None,
+                    "max_marks": q.max_marks,
+                    "marks": 0,
+                    "percentage": 0,
+                    "grade_band": "Not answered",
+                    "semantic_score": 0,
+                    "keyword_score": 0,
+                    "sentence_score": 0,
+                    "length_score": 0,
+                    "copy_risk": 0,
+                    "peer_similarity": 0,
+                    "similar_student_name": None,
+                    "review_requested": False,
+                    "teacher_review_note": None,
+                    "covered_keywords": [],
+                    "missing_keywords": [],
+                    "suggestions": ["No answer submitted."],
+                })
             continue
         ev = db.query(EvaluationResult).filter(
             EvaluationResult.submission_id == sub.id
         ).first()
         if not ev:
+            if attempted:
+                output.append({
+                    "question_id": q.id,
+                    "question_type": q.question_type,
+                    "question_text": q.question_text,
+                    "answer_text": sub.answer_text,
+                    "correct_option": q.correct_option,
+                    "correct_options": q.correct_options or ([q.correct_option] if q.correct_option else []),
+                    "allow_multiple": q.allow_multiple,
+                    "is_correct": (
+                        sorted(parse_mcq_answer(sub.answer_text)) == sorted(q.correct_options or ([q.correct_option] if q.correct_option else []))
+                        if q.question_type == "mcq"
+                        else None
+                    ),
+                    "max_marks": q.max_marks,
+                    "marks": 0,
+                    "percentage": 0,
+                    "grade_band": "Not evaluated",
+                    "semantic_score": 0,
+                    "keyword_score": 0,
+                    "sentence_score": 0,
+                    "length_score": 0,
+                    "copy_risk": 0,
+                    "peer_similarity": 0,
+                    "similar_student_name": None,
+                    "review_requested": False,
+                    "teacher_review_note": None,
+                    "covered_keywords": [],
+                    "missing_keywords": [],
+                    "suggestions": ["Answer is submitted but not evaluated yet."],
+                })
             continue
 
         total_marks += float(ev.marks)
-        total_max += q.max_marks
         output.append({
             "question_id": q.id,
+            "question_type": q.question_type,
             "question_text": q.question_text,
             "answer_text": sub.answer_text,
+            "correct_option": q.correct_option,
+            "correct_options": q.correct_options or ([q.correct_option] if q.correct_option else []),
+            "allow_multiple": q.allow_multiple,
+            "is_correct": (
+                sorted(parse_mcq_answer(sub.answer_text)) == sorted(q.correct_options or ([q.correct_option] if q.correct_option else []))
+                if q.question_type == "mcq"
+                else None
+            ),
             "max_marks": q.max_marks,
             "marks": float(ev.marks),
             "percentage": float(ev.percentage),
@@ -254,6 +398,10 @@ def my_results(
             "sentence_score": float(ev.sentence_score or 0),
             "length_score": float(ev.length_score or 0),
             "copy_risk": float(ev.copy_risk or 0),
+            "peer_similarity": float(ev.peer_similarity or 0),
+            "similar_student_name": similar_student_name(db, ev.similar_submission_id),
+            "review_requested": bool(ev.review_requested),
+            "teacher_review_note": ev.teacher_review_note or None,
             "covered_keywords": ev.covered_keywords or [],
             "missing_keywords": ev.missing_keywords or [],
             "suggestions": ev.suggestions or [],

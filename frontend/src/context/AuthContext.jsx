@@ -21,6 +21,16 @@ export function AuthProvider({ children }) {
     else navigate("/student");
   };
 
+  const updateUser = (patch) => {
+    const next = {
+      ...user,
+      ...patch,
+      name: patch.name || patch.full_name || user?.name,
+    };
+    if (next.name) localStorage.setItem("name", next.name);
+    setUser(next);
+  };
+
   const logout = () => {
     localStorage.clear();
     setUser(null);
@@ -28,7 +38,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, saveUser, logout }}>
+    <AuthContext.Provider value={{ user, saveUser, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );
