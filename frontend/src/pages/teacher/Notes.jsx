@@ -129,7 +129,7 @@ export default function Notes() {
   };
 
   return (
-    <div style={{ maxWidth: 1120 }}>
+    <div style={{ width: "100%" }}>
       {classroomId ? (
         <ClassroomTabs
           classroomId={classroomId}

@@ -258,7 +258,7 @@ export default function TeacherDashboard() {
   const firstName = user?.name?.split(" ")[0] || "Teacher";
 
   return (
-    <div style={{ maxWidth: 1180 }}>
+    <div style={{ width: "100%" }}>
       <div style={{
         display: "flex",
         justifyContent: "space-between",

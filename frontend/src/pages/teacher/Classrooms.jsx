@@ -92,7 +92,7 @@ export default function Classrooms() {
   };
 
   return (
-    <div style={{ maxWidth: 1180 }}>
+    <div style={{ width:"100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 3px", color: "#0f172a" }}>Classrooms</h1>

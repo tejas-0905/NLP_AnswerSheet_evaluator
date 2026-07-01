@@ -294,7 +294,7 @@ export default function CreateExam() {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: 1220 }}>
+    <form onSubmit={handleSubmit} style={{ width:"100%" }}>
       <div style={{
         display: "flex",
         justifyContent: "space-between",

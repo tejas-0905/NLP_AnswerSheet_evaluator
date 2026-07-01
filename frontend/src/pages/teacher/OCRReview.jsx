@@ -63,7 +63,7 @@ export default function OCRReview() {
   if (!data) return <p style={{ color: "#64748b", fontSize: 13 }}>Loading OCR review...</p>;
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div style={{ width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <button
           onClick={() => navigate(-1)}
