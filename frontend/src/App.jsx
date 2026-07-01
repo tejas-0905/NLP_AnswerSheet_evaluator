@@ -17,6 +17,7 @@ import Results       from "./pages/teacher/Results";
 import ResultsHome   from "./pages/teacher/ResultsHome";
 import Leaderboard   from "./pages/teacher/Leaderboard";
 import TeacherSettings from "./pages/teacher/Settings";
+import Notes         from "./pages/teacher/Notes";
 
 import StudentLayout  from "./pages/student/Layout";
 import StudentDash    from "./pages/student/Dashboard";
@@ -24,6 +25,7 @@ import StudentClasses from "./pages/student/Classrooms";
 import StudentExams   from "./pages/student/Exams";
 import TakeExam       from "./pages/student/TakeExam";
 import MyResults      from "./pages/student/MyResults";
+import StudentNotes   from "./pages/student/Notes";
 import Students       from "./pages/teacher/Students";
 import UploadSheet    from "./pages/student/UploadSheet";
 
@@ -55,9 +57,11 @@ function AppRoutes() {
           <Route path="classrooms/:classroomId/results/:examId" element={<Results />} />
           <Route path="classrooms/:classroomId/students" element={<Students />} />
           <Route path="classrooms/:classroomId/leaderboard" element={<Leaderboard />} />
+          <Route path="classrooms/:classroomId/notes" element={<Notes />} />
           <Route path="exams"               element={<Exams />} />
           <Route path="exams/:examId"        element={<ExamDetail />} />
           <Route path="exams/create"        element={<CreateExam />} />
+          <Route path="notes"               element={<Notes />} />
           <Route path="results"             element={<ResultsHome />} />
           <Route path="results/:examId"     element={<Results />} />
           <Route path="leaderboard"         element={<Leaderboard />} />
@@ -70,6 +74,7 @@ function AppRoutes() {
           <Route index                         element={<StudentDash />} />
           <Route path="classrooms"             element={<StudentClasses />} />
           <Route path="exams"                  element={<StudentExams />} />
+          <Route path="notes"                  element={<StudentNotes />} />
           <Route path="take-exam/:examId"      element={<TakeExam />} />
           <Route path="results/:examId"        element={<MyResults />} />
           <Route path="upload-sheet/:examId"   element={<UploadSheet />} />

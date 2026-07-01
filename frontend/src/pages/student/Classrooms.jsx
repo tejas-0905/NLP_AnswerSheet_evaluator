@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { joinClassroom, getMyClassrooms } from "../../api/student";
-import { Plus, School, ArrowRight, X } from "lucide-react";
+import { Plus, School, ArrowRight, X, FileText } from "lucide-react";
 import toast from "react-hot-toast";
 
 const BLUE = "#0f2a5f";
@@ -129,7 +129,7 @@ export default function StudentClassrooms() {
               <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 14px" }}>
                 Teacher: {c.teacher_name}
               </p>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                 <span style={{
                   fontFamily: "monospace", fontSize: 13,
                   fontWeight: 700, color: BLUE, letterSpacing: 2,
@@ -137,7 +137,32 @@ export default function StudentClassrooms() {
                 }}>
                   {c.code}
                 </span>
-                <ArrowRight size={16} color="#9ca3af" />
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      navigate("/student/notes", { state: { classroomId: c.id, classroomName: c.name } });
+                    }}
+                    title="View notes"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      background: "#f8fafc",
+                      color: BLUE,
+                      border: "1px solid #dfe6f3",
+                      borderRadius: 7,
+                      padding: "6px 9px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    <FileText size={13} /> Notes
+                  </button>
+                  <ArrowRight size={16} color="#9ca3af" />
+                </div>
               </div>
             </div>
           ))}

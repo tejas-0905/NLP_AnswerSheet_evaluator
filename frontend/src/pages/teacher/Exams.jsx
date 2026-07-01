@@ -90,8 +90,10 @@ export default function Exams() {
           )}
           style={{
             display: "flex", alignItems: "center", gap: 6,
-            background: "#2563eb", color: "#fff", border: "none",
-            borderRadius: 8, padding: "9px 16px", cursor: "pointer", fontSize: 14,
+            background: "#0f2a5f", color: "#fff", border: "1px solid #0f2a5f",
+            borderRadius: 8, padding: "10px 16px", cursor: "pointer", fontSize: 14,
+            fontWeight: 800,
+            boxShadow: "0 8px 18px rgba(15, 42, 95, 0.18)",
           }}
         >
           <Plus size={15} /> New exam

@@ -10,4 +10,23 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const detail = error.response?.data?.detail;
+    const isAuthFailure =
+      error.response?.status === 401 &&
+      ["Invalid token", "User not found", "Not authenticated"].includes(detail);
+
+    if (isAuthFailure) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      localStorage.removeItem("name");
+      window.dispatchEvent(new Event("auth:logout"));
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export default API;

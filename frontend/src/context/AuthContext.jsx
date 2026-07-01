@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "./auth-context";
 
@@ -36,6 +36,16 @@ export function AuthProvider({ children }) {
     setUser(null);
     navigate("/login");
   };
+
+  useEffect(() => {
+    const handleAuthLogout = () => {
+      setUser(null);
+      navigate("/login");
+    };
+
+    window.addEventListener("auth:logout", handleAuthLogout);
+    return () => window.removeEventListener("auth:logout", handleAuthLogout);
+  }, [navigate]);
 
   return (
     <AuthContext.Provider value={{ user, saveUser, updateUser, logout }}>

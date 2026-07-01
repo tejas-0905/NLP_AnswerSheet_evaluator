@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart2, BookOpen, Trophy, Users } from "lucide-react";
+import { ArrowLeft, BarChart2, BookOpen, FileText, Trophy, Users } from "lucide-react";
 
 const tabStyle = ({ isActive }) => ({
   display: "flex",
@@ -52,6 +52,9 @@ export default function ClassroomTabs({ classroomId, classroomName }) {
         </NavLink>
         <NavLink to={`/teacher/classrooms/${classroomId}/students`} style={tabStyle}>
           <Users size={15} /> Students
+        </NavLink>
+        <NavLink to={`/teacher/classrooms/${classroomId}/notes`} style={tabStyle}>
+          <FileText size={15} /> Notes
         </NavLink>
         <NavLink to={`/teacher/classrooms/${classroomId}/leaderboard`} style={tabStyle}>
           <Trophy size={15} /> Leaderboard

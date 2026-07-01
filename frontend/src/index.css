@@ -115,6 +115,8 @@ code {
   width: 100%;
   min-height: 100svh;
   background: #f6f8fc;
+  padding: 6px 0 6px 6px;
+  box-sizing: border-box;
 }
 
 .teacher-main {
@@ -128,17 +130,30 @@ code {
 .teacher-sidebar {
   width: 220px;
   flex: 0 0 220px;
-  min-height: 100svh;
-  background: #fff;
-  border-right: 1px solid #dfe6f3;
+  min-height: calc(100svh - 12px);
+  background: #4965f2;
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
   display: flex;
   flex-direction: column;
   padding: 20px 0;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.app-sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+
+.app-sidebar-link[aria-current="page"] {
+  color: #1f2f69 !important;
 }
 
 .student-shell {
   width: 100%;
+  padding: 6px 0 6px 6px;
+  box-sizing: border-box;
 }
 
 .student-main {
@@ -166,6 +181,7 @@ code {
 @media (max-width: 760px) {
   .teacher-shell {
     flex-direction: column;
+    padding: 0;
   }
 
   .teacher-sidebar {
@@ -173,7 +189,8 @@ code {
     flex-basis: auto;
     min-height: auto;
     border-right: 0;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 0;
+    border-radius: 0;
   }
 
   .teacher-main {
@@ -183,13 +200,16 @@ code {
   .student-shell {
     flex-direction: column !important;
     min-height: 100svh !important;
+    padding: 0 !important;
   }
 
   .student-sidebar {
     width: 100% !important;
     flex-basis: auto !important;
     border-right: 0 !important;
-    border-bottom: 1px solid #dfe6f3 !important;
+    border-bottom: 0 !important;
+    border-radius: 0 !important;
+    min-height: auto !important;
     padding: 16px 0 !important;
   }
 

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.db_startup import initialize_database
-from api.routers import auth, classroom, exam, ocr, student
+from api.routers import auth, classroom, exam, notes, ocr, student
 
 
 app = FastAPI(title="Answer Sheet Evaluator API")
@@ -22,6 +22,7 @@ app.include_router(classroom.router)
 app.include_router(exam.router)
 app.include_router(student.router)
 app.include_router(ocr.router)
+app.include_router(notes.router)
 
 
 @app.get("/")
