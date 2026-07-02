@@ -1,15 +1,24 @@
 import io
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
 os.environ.setdefault("USE_TF", "0")
+
+app = None
+if os.getenv("RENDER") or any("uvicorn" in Path(arg).name.lower() for arg in sys.argv):
+    from api.main import app
 
 import pandas as pd
 import streamlit as st
 from sklearn.feature_extraction.text import HashingVectorizer
 from sentence_transformers import SentenceTransformer
 
-from backend.evaluator import DEFAULT_WEIGHTS, evaluate_answer, grade_band, parse_required_concepts
+try:
+    from backend.evaluator import DEFAULT_WEIGHTS, evaluate_answer, grade_band, parse_required_concepts
+except ModuleNotFoundError:
+    from evaluator import DEFAULT_WEIGHTS, evaluate_answer, grade_band, parse_required_concepts
 
 
 st.set_page_config(
