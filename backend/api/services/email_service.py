@@ -1,6 +1,7 @@
 import aiosmtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 from config import settings
 
 
@@ -43,6 +44,8 @@ async def send_otp_email(to_email: str, otp: str, full_name: str):
     message["From"] = f"Answer Evaluator <{settings.SMTP_USER}>"
     message["To"] = to_email
     message["Subject"] = f"{otp} is your verification code"
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid()
 
     plain_text = (
         f"Hi {full_name},\n\n"
@@ -62,6 +65,7 @@ async def send_otp_email(to_email: str, otp: str, full_name: str):
             username=settings.SMTP_USER,
             password=settings.SMTP_PASSWORD,
             start_tls=True,
+            timeout=30,
         )
         print(f"[EMAIL] OTP sent to {to_email}")
     except aiosmtplib.SMTPException as e:
