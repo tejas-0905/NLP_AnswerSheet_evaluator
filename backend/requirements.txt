@@ -129,7 +129,6 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-jose==3.5.0
 python-multipart==0.0.29
-python-3.11.9
 
 pytz==2026.2
 
