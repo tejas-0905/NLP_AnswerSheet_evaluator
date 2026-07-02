@@ -1,8 +1,10 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from uuid import uuid4
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from config import settings
 from api.dependencies import get_db, get_current_user
 from api.models.user import User
 from api.models.classroom import Classroom
@@ -11,13 +13,12 @@ from api.models.submission import Submission, EvaluationResult
 from api.models.ocr import OCRSubmission, OCRQuestionExtraction
 from api.services.ocr_service import correct_ocr_text_with_context, process_answer_sheet
 from api.services.similarity_service import update_peer_similarity
+from api.services.storage_service import upload_to_supabase, delete_from_supabase
 from evaluator import evaluate_answer, parse_required_concepts
 
 router = APIRouter(prefix="/ocr", tags=["OCR"])
 
-UPLOAD_DIR = "uploads/answer_sheets"
 MIN_AUTO_EVALUATE_CONFIDENCE = 55
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def teacher_owns_ocr_submission(db: Session, teacher_id: int, ocr_sub: OCRSubmission) -> bool:
@@ -111,9 +112,19 @@ async def upload_answer_sheet(
     if len(file_bytes) > 20 * 1024 * 1024:
         raise HTTPException(400, "File too large. Maximum 20MB allowed")
 
-    save_path = f"{UPLOAD_DIR}/{current_user.id}_{exam_id}_{file.filename}"
-    with open(save_path, "wb") as f:
-        f.write(file_bytes)
+    upload_path = f"answer_sheets/{current_user.id}_{exam_id}_{uuid4().hex}{ext}"
+    upload_to_supabase(
+        settings.SUPABASE_ANSWER_SHEETS_BUCKET,
+        upload_path,
+        file_bytes,
+        file.content_type or "application/octet-stream",
+    )
+
+    if existing and existing.image_path:
+        try:
+            delete_from_supabase(settings.SUPABASE_ANSWER_SHEETS_BUCKET, existing.image_path)
+        except Exception:
+            pass
 
     questions = db.query(Question).filter(
         Question.exam_id == exam_id
@@ -139,7 +150,7 @@ async def upload_answer_sheet(
             OCRQuestionExtraction.ocr_submission_id == ocr_sub.id
         ).delete()
         ocr_sub.original_filename = file.filename
-        ocr_sub.image_path = save_path
+        ocr_sub.image_path = upload_path
         ocr_sub.extracted_text = None
         ocr_sub.confidence_score = None
         ocr_sub.ocr_error = None
@@ -149,7 +160,7 @@ async def upload_answer_sheet(
             student_id=current_user.id,
             exam_id=exam_id,
             original_filename=file.filename,
-            image_path=save_path,
+            image_path=upload_path,
             status="processing",
         )
         db.add(ocr_sub)

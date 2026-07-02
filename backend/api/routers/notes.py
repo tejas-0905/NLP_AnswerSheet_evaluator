@@ -3,12 +3,14 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from config import settings
 from api.dependencies import get_db, get_current_user
 from api.models.classroom import Classroom, ClassroomMember, Note
 from api.models.user import User
+from api.services.storage_service import upload_to_supabase, delete_from_supabase, download_from_supabase
 
 
 router = APIRouter(prefix="/notes", tags=["Notes"])
@@ -151,9 +153,13 @@ async def upload_note(
     notes = []
     for upload_file, original_filename, extension, file_bytes in prepared_files:
         stored_filename = f"{current_user.id}_{classroom_id}_{uuid.uuid4().hex}{extension}"
-        file_path = UPLOAD_DIR / stored_filename
-        with open(file_path, "wb") as saved_file:
-            saved_file.write(file_bytes)
+        file_path = f"notes/{stored_filename}"
+        upload_to_supabase(
+            settings.SUPABASE_NOTES_BUCKET,
+            file_path,
+            file_bytes,
+            upload_file.content_type or "application/octet-stream",
+        )
 
         note = Note(
             classroom_id=classroom_id,
@@ -162,7 +168,7 @@ async def upload_note(
             description=(description or "").strip() or None,
             original_filename=original_filename,
             stored_filename=stored_filename,
-            file_path=str(file_path),
+            file_path=file_path,
             content_type=upload_file.content_type,
             file_size=len(file_bytes),
         )
@@ -186,13 +192,30 @@ def download_note(
         raise HTTPException(404, "Note not found")
     if not user_can_access_note(db, note, current_user):
         raise HTTPException(403, "You do not have access to this note")
+
+    if note.file_path and note.file_path.startswith("notes/"):
+        try:
+            response = download_from_supabase(settings.SUPABASE_NOTES_BUCKET, note.file_path)
+        except Exception:
+            raise HTTPException(404, "Uploaded file is missing")
+
+        return StreamingResponse(
+            iter([response.content]),
+            media_type=note.content_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{note.original_filename}\""
+            },
+        )
+
     if not os.path.exists(note.file_path):
         raise HTTPException(404, "Uploaded file is missing")
 
-    return FileResponse(
-        note.file_path,
+    return StreamingResponse(
+        open(note.file_path, "rb"),
         media_type=note.content_type or "application/octet-stream",
-        filename=note.original_filename,
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{note.original_filename}\""
+        },
     )
 
 
@@ -209,7 +232,12 @@ def delete_note(
     if not note:
         raise HTTPException(404, "Note not found")
 
-    if os.path.exists(note.file_path):
+    if note.file_path and note.file_path.startswith("notes/"):
+        try:
+            delete_from_supabase(settings.SUPABASE_NOTES_BUCKET, note.file_path)
+        except Exception:
+            pass
+    elif os.path.exists(note.file_path):
         os.remove(note.file_path)
 
     db.delete(note)

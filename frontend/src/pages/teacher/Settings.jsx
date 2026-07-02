@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Bell,
@@ -9,7 +9,7 @@ import {
   Settings as SettingsIcon,
   User,
 } from "lucide-react";
-import { getMe, updateMySettings } from "../../api/auth";
+import { getMe, updateMySettings, uploadMyProfilePhoto } from "../../api/auth";
 import { useAuth } from "../../context/useAuth";
 
 const BLUE = "#2563eb";
@@ -95,6 +95,8 @@ export default function TeacherSettings() {
   const { updateUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
   const [initial, setInitial] = useState(null);
   const [form, setForm] = useState({
     full_name: "",
@@ -108,6 +110,7 @@ export default function TeacherSettings() {
     default_question_marks: 10,
     release_marks_immediately: true,
   });
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -129,6 +132,7 @@ export default function TeacherSettings() {
         };
         setForm(next);
         setInitial(next);
+        setPhotoUrl(data.profile_photo_url || null);
       })
       .catch(() => toast.error("Could not load settings"))
       .finally(() => {
@@ -151,6 +155,29 @@ export default function TeacherSettings() {
 
   const resetForm = () => {
     if (initial) setForm(initial);
+  };
+
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setPhotoUploading(true);
+    try {
+      const response = await uploadMyProfilePhoto(file);
+      const url = response.data.user.profile_photo_url || null;
+      setPhotoUrl(url);
+      updateUser({ profile_photo_url: url });
+      toast.success("Profile photo uploaded");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to upload photo");
+    } finally {
+      setPhotoUploading(false);
+      event.target.value = "";
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -176,6 +203,7 @@ export default function TeacherSettings() {
         default_question_marks: saved.default_question_marks,
         release_marks_immediately: saved.release_marks_immediately,
       };
+      setPhotoUrl(saved.profile_photo_url || photoUrl);
       setForm(next);
       setInitial(next);
       updateUser({ name: saved.full_name, full_name: saved.full_name });
@@ -237,6 +265,7 @@ export default function TeacherSettings() {
                 width: 54,
                 height: 54,
                 borderRadius: "50%",
+                overflow: "hidden",
                 background: "#e0edff",
                 color: "#0f2a5f",
                 display: "flex",
@@ -245,8 +274,23 @@ export default function TeacherSettings() {
                 fontSize: 18,
                 fontWeight: 900,
               }}>
-                {initials.toUpperCase()}
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt="Profile"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  initials.toUpperCase()
+                )}
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handlePhotoChange}
+                style={{ display: "none" }}
+              />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ color: "#0f172a", fontSize: 15, fontWeight: 800, margin: "0 0 2px" }}>
                   {form.full_name || "Teacher"}
@@ -267,19 +311,21 @@ export default function TeacherSettings() {
               </div>
               <button
                 type="button"
-                onClick={() => toast("Photo upload can be added after file storage is configured.")}
+                onClick={handlePhotoClick}
+                disabled={photoUploading}
                 style={{
                   border: "1px solid #cbd5e1",
                   background: "#fff",
                   color: "#0f172a",
                   borderRadius: 8,
                   padding: "9px 14px",
-                  cursor: "pointer",
+                  cursor: photoUploading ? "not-allowed" : "pointer",
+                  opacity: photoUploading ? 0.65 : 1,
                   fontSize: 13,
                   fontWeight: 800,
                 }}
               >
-                Change photo
+                {photoUploading ? "Uploading..." : "Change photo"}
               </button>
             </div>
 

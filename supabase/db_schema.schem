@@ -1,0 +1,155 @@
+-- Supabase schema generated from backend/api/models
+
+-- Enum types
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM ('teacher', 'student');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    full_name VARCHAR(255) NOT NULL,
+    institution VARCHAR(255),
+    department VARCHAR(255),
+    bio TEXT,
+    notify_submissions BOOLEAN DEFAULT TRUE,
+    notify_low_scores BOOLEAN DEFAULT TRUE,
+    notify_ocr_review BOOLEAN DEFAULT TRUE,
+    default_question_marks INTEGER DEFAULT 10,
+    release_marks_immediately BOOLEAN DEFAULT TRUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role user_role NOT NULL,
+    is_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+-- OTP verifications
+CREATE TABLE IF NOT EXISTS otp_verifications (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    otp_code VARCHAR(6) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE
+);
+
+-- Classrooms
+CREATE TABLE IF NOT EXISTS classrooms (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    code VARCHAR(8) NOT NULL UNIQUE,
+    teacher_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS classroom_members (
+    id SERIAL PRIMARY KEY,
+    classroom_id INTEGER REFERENCES classrooms(id) ON DELETE CASCADE,
+    student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Notes
+CREATE TABLE IF NOT EXISTS notes (
+    id SERIAL PRIMARY KEY,
+    classroom_id INTEGER NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
+    teacher_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    original_filename VARCHAR(255) NOT NULL,
+    stored_filename VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    content_type VARCHAR(120),
+    file_size INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Exams and related
+CREATE TABLE IF NOT EXISTS exams (
+    id SERIAL PRIMARY KEY,
+    classroom_id INTEGER NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    time_limit_minutes INTEGER,
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+    id SERIAL PRIMARY KEY,
+    exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+    question_type VARCHAR(30) NOT NULL DEFAULT 'descriptive',
+    question_text TEXT NOT NULL,
+    model_answer TEXT,
+    max_marks INTEGER NOT NULL,
+    required_concepts TEXT,
+    options JSONB,
+    correct_option VARCHAR(255),
+    correct_options JSONB,
+    allow_multiple BOOLEAN DEFAULT FALSE,
+    order_index INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS exam_access (
+    id SERIAL PRIMARY KEY,
+    exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+    student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Submissions & evaluation
+CREATE TABLE IF NOT EXISTS submissions (
+    id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    answer_text TEXT NOT NULL,
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS evaluation_results (
+    id SERIAL PRIMARY KEY,
+    submission_id INTEGER UNIQUE REFERENCES submissions(id) ON DELETE CASCADE,
+    marks NUMERIC(6,2),
+    percentage NUMERIC(5,2),
+    grade_band VARCHAR(30),
+    semantic_score NUMERIC(4,3),
+    keyword_score NUMERIC(4,3),
+    sentence_score NUMERIC(4,3),
+    length_score NUMERIC(4,3),
+    copy_risk NUMERIC(5,2),
+    peer_similarity NUMERIC(5,2) DEFAULT 0,
+    similar_submission_id INTEGER REFERENCES submissions(id) ON DELETE SET NULL,
+    review_requested BOOLEAN DEFAULT FALSE,
+    teacher_review_note TEXT,
+    covered_keywords JSONB DEFAULT '[]'::jsonb,
+    missing_keywords JSONB DEFAULT '[]'::jsonb,
+    suggestions JSONB DEFAULT '[]'::jsonb,
+    evaluated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- OCR related
+CREATE TABLE IF NOT EXISTS ocr_submissions (
+    id SERIAL PRIMARY KEY,
+    student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    exam_id INTEGER REFERENCES exams(id) ON DELETE CASCADE,
+    original_filename VARCHAR(255),
+    image_path VARCHAR(500),
+    extracted_text TEXT,
+    confidence_score NUMERIC(5,2),
+    status VARCHAR(20) DEFAULT 'pending',
+    ocr_error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ocr_question_extractions (
+    id SERIAL PRIMARY KEY,
+    ocr_submission_id INTEGER REFERENCES ocr_submissions(id) ON DELETE CASCADE,
+    question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
+    extracted_text TEXT,
+    confidence NUMERIC(5,2),
+    is_corrected BOOLEAN DEFAULT FALSE,
+    corrected_text TEXT
+);

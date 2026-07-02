@@ -15,6 +15,7 @@ class User(Base):
     institution   = Column(String, nullable=True)
     department    = Column(String, nullable=True)
     bio           = Column(Text, nullable=True)
+    profile_photo_path = Column(String(500), nullable=True)
     notify_submissions = Column(Boolean, default=True)
     notify_low_scores  = Column(Boolean, default=True)
     notify_ocr_review  = Column(Boolean, default=True)

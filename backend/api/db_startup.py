@@ -44,6 +44,7 @@ def ensure_user_settings_columns() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS institution VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_path VARCHAR(500)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_submissions BOOLEAN DEFAULT TRUE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_low_scores BOOLEAN DEFAULT TRUE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_ocr_review BOOLEAN DEFAULT TRUE",

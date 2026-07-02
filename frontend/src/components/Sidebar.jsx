@@ -118,10 +118,19 @@ export default function Sidebar() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            overflow: "hidden",
             fontWeight: 900,
             fontSize: 13,
           }}>
-            {(user?.name || "T").split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
+            {user?.profile_photo_url ? (
+              <img
+                src={user.profile_photo_url}
+                alt="Profile"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              (user?.name || "T").split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()
+            )}
           </div>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: 13, fontWeight: 800, margin: "0 0 2px", color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
