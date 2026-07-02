@@ -7,33 +7,65 @@ from config import settings
 
 def build_otp_email_html(full_name: str, otp: str) -> str:
     return f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; background: #f4f4f4; padding: 30px;">
-      <div style="max-width: 480px; margin: auto; background: white;
-                  border-radius: 10px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-
-        <h2 style="color: #1e293b; margin-top: 0;">Verify your email</h2>
-        <p style="color: #475569;">Hi <strong>{full_name}</strong>,</p>
-        <p style="color: #475569;">Use the code below to verify your account.
-           It expires in <strong>10 minutes</strong>.</p>
-
-        <div style="text-align: center; margin: 32px 0;">
-          <span style="font-size: 42px; font-weight: bold; letter-spacing: 14px;
-                       color: #2563eb; background: #eff6ff; padding: 16px 28px;
-                       border-radius: 10px; display: inline-block;">
-            {otp}
-          </span>
-        </div>
-
-        <p style="color: #94a3b8; font-size: 13px;">
-          If you did not create an account, ignore this email.
-          Do not share this code with anyone.
-        </p>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
-        <p style="color: #cbd5e1; font-size: 12px; margin: 0;">
-          Answer Sheet Evaluator
-        </p>
-      </div>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Your OTP Code</title>
+      <style>
+        body {{ margin: 0; padding: 0; background: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
+        .email-body {{ width: 100%; min-width: 320px; padding: 24px 0; }}
+        .email-card {{ width: 100%; max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08); }}
+        .hero {{ background: #4338ca; padding: 28px 24px; text-align: center; }}
+        .hero h1 {{ margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 0.02em; }}
+        .content {{ padding: 30px 32px 20px; color: #0f172a; }}
+        .content p {{ margin: 0 0 18px; font-size: 15px; color: #334155; line-height: 1.7; }}
+        .code-panel {{ display: block; margin: 24px auto; background: #eef2ff; border-radius: 16px; padding: 22px 0; width: 100%; max-width: 360px; text-align: center; }}
+        .code-text {{ display: inline-block; font-size: 34px; font-weight: 800; letter-spacing: 0.24em; color: #4338ca; }}
+        .footer {{ background: #f8fafc; padding: 20px 32px 28px; text-align: center; color: #94a3b8; font-size: 13px; }}
+        @media screen and (max-width: 540px) {{
+          .email-card {{ border-radius: 20px; }}
+          .hero {{ padding: 24px 18px; }}
+          .hero h1 {{ font-size: 20px; }}
+          .content {{ padding: 22px 18px 18px; }}
+          .content p {{ font-size: 14px; }}
+          .code-panel {{ padding: 18px 0; max-width: 100%; }}
+          .code-text {{ font-size: 30px; letter-spacing: 0.2em; }}
+          .footer {{ padding: 18px 18px 22px; font-size: 12px; }}
+        }}
+      </style>
+    </head>
+    <body>
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-body">
+        <tr>
+          <td align="center">
+            <table cellpadding="0" cellspacing="0" role="presentation" class="email-card">
+              <tr>
+                <td class="hero">
+                  <h1>Your OTP Code</h1>
+                </td>
+              </tr>
+              <tr>
+                <td class="content">
+                  <p>Hello <strong>{full_name}</strong>,</p>
+                  <p>Your One-Time Password (OTP) for account verification is below.</p>
+                  <div class="code-panel">
+                    <span class="code-text">{otp}</span>
+                  </div>
+                  <p>This OTP is valid for <strong>10 minutes</strong>. Please do not share this code with anyone.</p>
+                  <p>If you didn't request this code, please ignore this email.</p>
+                </td>
+              </tr>
+              <tr>
+                <td class="footer">
+                  Thank you for using Answer Sheet Evaluator.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
     """
