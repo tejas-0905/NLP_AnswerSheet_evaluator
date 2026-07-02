@@ -7,4 +7,6 @@
 .env.local
 .env.*.local
 
-db_schema.schema
+
+echo "db_schema.schema" >> .gitignore
+
