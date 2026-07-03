@@ -38,14 +38,17 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         db.add(otp)
         db.commit()
 
+        email_sent = True
         try:
             await send_otp_email(existing_user.email, otp_code, existing_user.full_name)
         except RuntimeError:
+            email_sent = False
             print(f"[WARN] OTP email failed for {existing_user.email}")
 
         return {
-            "message": "This email is already registered but not verified. A new OTP has been sent.",
+            "message": "This email is already registered but not verified. A new OTP has been sent (if delivery succeeded).",
             "user_id": existing_user.id,
+            "email_sent": email_sent,
         }
 
     user = User(
@@ -63,15 +66,18 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.add(otp)
     db.commit()
 
+    email_sent = True
     try:
         await send_otp_email(user.email, otp_code, user.full_name)
     except RuntimeError:
         # Don't block registration if email fails — log and continue
+        email_sent = False
         print(f"[WARN] OTP email failed for {user.email}")
 
     return {
-        "message": "Registered successfully. Check your email for OTP.",
+        "message": "Registered successfully. Check your email for OTP (if delivery succeeded).",
         "user_id": user.id,
+        "email_sent": email_sent,
     }
 
 
@@ -124,8 +130,14 @@ async def resend_otp(payload: ResendOTPRequest, db: Session = Depends(get_db)):
     db.add(otp)
     db.commit()
 
-    await send_otp_email(user.email, otp_code, user.full_name)
-    return {"message": "New OTP sent. Check your email.", "user_id": user.id}
+    email_sent = True
+    try:
+        await send_otp_email(user.email, otp_code, user.full_name)
+    except RuntimeError:
+        email_sent = False
+        print(f"[WARN] OTP email failed for {user.email}")
+
+    return {"message": "New OTP sent (if delivery succeeded). Check your email.", "user_id": user.id, "email_sent": email_sent}
 
 
 @router.post("/login", response_model=TokenResponse)
