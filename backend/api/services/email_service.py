@@ -101,5 +101,8 @@ async def send_otp_email(to_email: str, otp: str, full_name: str):
         )
         print(f"[EMAIL] OTP sent to {to_email}")
     except aiosmtplib.SMTPException as e:
-        print(f"[EMAIL ERROR] Failed to send to {to_email}: {e}")
-        raise RuntimeError(f"Could not send verification email: {e}")
+        print(f"[EMAIL ERROR] Failed to send to {to_email}: {type(e).__name__}: {e}")
+        raise RuntimeError(f"Could not send verification email: {type(e).__name__}: {e}")
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send to {to_email}: {type(e).__name__}: {e}")
+        raise RuntimeError(f"Could not send verification email: {type(e).__name__}: {e}")
