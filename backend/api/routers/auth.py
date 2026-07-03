@@ -27,7 +27,8 @@ def build_profile_photo_url(path: str | None) -> str | None:
 
 @router.post("/register")
 async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == payload.email).first()
+    email = str(payload.email).strip().lower()
+    existing_user = db.query(User).filter(User.email == email).first()
     if existing_user:
         if existing_user.is_verified:
             raise HTTPException(status_code=400, detail="Email already registered")
@@ -48,7 +49,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         }
 
     user = User(
-        email=payload.email,
+        email=email,
         full_name=payload.full_name,
         password_hash=hash_password(payload.password),
         role=payload.role,
@@ -108,7 +109,8 @@ class ResendOTPRequest(BaseModel):
 
 @router.post("/resend-otp")
 async def resend_otp(payload: ResendOTPRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    email = str(payload.email).strip().lower()
+    user = db.query(User).filter(User.email == email).first()
 
     if not user:
         # Don't reveal whether email exists
@@ -128,7 +130,8 @@ async def resend_otp(payload: ResendOTPRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    email = str(payload.email).strip().lower()
+    user = db.query(User).filter(User.email == email).first()
 
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")

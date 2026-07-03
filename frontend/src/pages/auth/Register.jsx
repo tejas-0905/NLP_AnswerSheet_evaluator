@@ -24,7 +24,11 @@ export default function Register() {
       const res = await registerUser({ ...form, role });
       navigate("/verify-otp", { state: { user_id: res.data.user_id, email: form.email } });
     } catch (err) {
-      setError(err.response?.data?.detail || "Registration failed. Try again.");
+      const detail = err.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail.map((item) => item.msg || item.message || String(item)).join(", ")
+        : detail;
+      setError(message || err.message || "Registration failed. Try again.");
     } finally { setLoading(false); }
   };
 

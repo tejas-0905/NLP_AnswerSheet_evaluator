@@ -54,16 +54,23 @@ export default function UploadSheet() {
 
     try {
       const res = await uploadAnswerSheet(examId, formData);
-      setResult(res.data);
-      toast.success("Answer sheet evaluated!");
+      const queued = res.data.needs_review === null || res.data.overall_confidence === undefined;
+      setResult({ ...res.data, queued });
+      toast.success(queued ? "Answer sheet uploaded — processing queued." : "Answer sheet evaluated!");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Upload failed. Try again.");
+      const detail = err.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail.map((item) => item.msg || item.message || String(item)).join(", ")
+        : detail;
+      toast.error(message || err.message || "Upload failed. Try again.");
     } finally {
       setUploading(false);
     }
   };
 
   if (result) {
+    const isQueued = result.queued || result.needs_review === null;
+
     return (
       <div style={{ maxWidth: 600 }}>
         <div style={{
@@ -73,70 +80,78 @@ export default function UploadSheet() {
         }}>
           <div style={{
             width: 64, height: 64, borderRadius: "50%",
-            background: result.needs_review ? "#fef9c3" : "#dcfce7", margin: "0 auto 16px",
+            background: isQueued ? "#eef2ff" : result.needs_review ? "#fef9c3" : "#dcfce7",
+            margin: "0 auto 16px",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            {result.needs_review ? (
+            {isQueued ? (
+              <Upload size={30} color={BLUE} />
+            ) : result.needs_review ? (
               <AlertTriangle size={30} color="#ca8a04" />
             ) : (
               <CheckCircle size={30} color="#16a34a" />
             )}
           </div>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px", color: "#0f172a" }}>
-            {result.needs_review ? "Submitted for review" : "Sheet processed!"}
+            {isQueued ? "Upload queued" : result.needs_review ? "Submitted for review" : "Sheet processed!"}
           </h2>
           <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 24px" }}>
-            {result.needs_review
-              ? "Your teacher needs to verify the OCR text before marks are confirmed."
-              : `${result.questions_extracted} questions extracted from ${result.pages_processed} page(s)`}
+            {isQueued
+              ? "Your file was uploaded successfully and will be processed shortly. Check back in My Results."
+              : result.needs_review
+                ? "Your teacher needs to verify the OCR text before marks are confirmed."
+                : `${result.questions_extracted} questions extracted from ${result.pages_processed} page(s)`}
           </p>
 
-          {/* Confidence score */}
-          <div style={{
-            background: "#f8fafc", borderRadius: 10,
-            padding: "16px 20px", marginBottom: 20, textAlign: "left",
-          }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 10px" }}>
-              OCR confidence score
-            </p>
-            <div style={{ height: 8, background: "#dfe6f3", borderRadius: 4, marginBottom: 6 }}>
+          {!isQueued && (
+            <>
               <div style={{
-                height: "100%", borderRadius: 4,
-                width: `${result.overall_confidence}%`,
-                background: result.overall_confidence >= 75 ? "#16a34a"
-                  : result.overall_confidence >= 55 ? "#d97706" : "#dc2626",
-                transition: "width 1s ease",
-              }} />
-            </div>
-            <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
-              {result.overall_confidence.toFixed(1)}% average confidence
-            </p>
-          </div>
+                background: "#f8fafc", borderRadius: 10,
+                padding: "16px 20px", marginBottom: 20, textAlign: "left",
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 10px" }}>
+                  OCR confidence score
+                </p>
+                <div style={{ height: 8, background: "#dfe6f3", borderRadius: 4, marginBottom: 6 }}>
+                  <div style={{
+                    height: "100%", borderRadius: 4,
+                    width: `${result.overall_confidence}%`,
+                    background: result.overall_confidence >= 75 ? "#16a34a"
+                      : result.overall_confidence >= 55 ? "#d97706" : "#dc2626",
+                    transition: "width 1s ease",
+                  }} />
+                </div>
+                <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
+                  {result.overall_confidence.toFixed(1)}% average confidence
+                </p>
+              </div>
 
-          {result.needs_review && (
-            <div style={{
-              display: "flex", alignItems: "flex-start", gap: 10,
-              background: "#fef9c3", border: "1px solid #fde68a",
-              borderRadius: 8, padding: "12px 14px",
-              marginBottom: 20, textAlign: "left",
-            }}>
-              <AlertTriangle size={16} color="#ca8a04" style={{ flexShrink: 0, marginTop: 1 }} />
-              <p style={{ fontSize: 13, color: "#92400e", margin: 0 }}>
-                {result.low_confidence_questions} question(s) had low OCR confidence.
-                Your teacher may review and correct the extracted text before final marks are confirmed.
-              </p>
-            </div>
+              {result.needs_review && (
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: 10,
+                  background: "#fef9c3", border: "1px solid #fde68a",
+                  borderRadius: 8, padding: "12px 14px",
+                  marginBottom: 20, textAlign: "left",
+                }}>
+                  <AlertTriangle size={16} color="#ca8a04" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 13, color: "#92400e", margin: 0 }}>
+                    {result.low_confidence_questions} question(s) had low OCR confidence.
+                    Your teacher may review and correct the extracted text before final marks are confirmed.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           <button
-            onClick={() => navigate(result.needs_review ? "/student/exams" : `/student/results/${examId}`)}
+            onClick={() => navigate(isQueued ? "/student/exams" : result.needs_review ? "/student/exams" : `/student/results/${examId}`)}
             style={{
               background: BLUE, color: "#fff", border: "none",
               borderRadius: 8, padding: "11px 28px",
               cursor: "pointer", fontSize: 14, fontWeight: 600,
             }}
           >
-            {result.needs_review ? "Back to exams" : "View my results"}
+            {isQueued ? "Back to exams" : result.needs_review ? "Back to exams" : "View my results"}
           </button>
         </div>
       </div>

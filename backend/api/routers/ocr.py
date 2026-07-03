@@ -1,6 +1,6 @@
 import os
 from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,8 @@ from api.services.ocr_service import correct_ocr_text_with_context, process_answ
 from api.services.similarity_service import update_peer_similarity
 from api.services.storage_service import upload_to_supabase, delete_from_supabase
 from evaluator import evaluate_answer, parse_required_concepts
+from api.database import SessionLocal
+import traceback
 
 router = APIRouter(prefix="/ocr", tags=["OCR"])
 
@@ -80,6 +82,7 @@ def list_ocr_reviews(
 async def upload_answer_sheet(
     exam_id: int,
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -113,12 +116,16 @@ async def upload_answer_sheet(
         raise HTTPException(400, "File too large. Maximum 20MB allowed")
 
     upload_path = f"answer_sheets/{current_user.id}_{exam_id}_{uuid4().hex}{ext}"
-    upload_to_supabase(
-        settings.SUPABASE_ANSWER_SHEETS_BUCKET,
-        upload_path,
-        file_bytes,
-        file.content_type or "application/octet-stream",
-    )
+    # Upload file to storage
+    try:
+        upload_to_supabase(
+            settings.SUPABASE_ANSWER_SHEETS_BUCKET,
+            upload_path,
+            file_bytes,
+            file.content_type or "application/octet-stream",
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Could not upload file to storage: {e}") from e
 
     if existing and existing.image_path:
         try:
@@ -133,22 +140,9 @@ async def upload_answer_sheet(
     if not questions:
         raise HTTPException(400, "This exam has no questions")
 
+    # Create or update submission record and return immediately. Heavy OCR/eval runs in background.
     if existing:
         ocr_sub = existing
-        for question in questions:
-            sub = db.query(Submission).filter(
-                Submission.question_id == question.id,
-                Submission.student_id == current_user.id,
-            ).first()
-            if sub:
-                db.query(EvaluationResult).filter(
-                    EvaluationResult.submission_id == sub.id
-                ).delete()
-                db.delete(sub)
-
-        db.query(OCRQuestionExtraction).filter(
-            OCRQuestionExtraction.ocr_submission_id == ocr_sub.id
-        ).delete()
         ocr_sub.original_filename = file.filename
         ocr_sub.image_path = upload_path
         ocr_sub.extracted_text = None
@@ -167,133 +161,144 @@ async def upload_answer_sheet(
     db.commit()
     db.refresh(ocr_sub)
 
-    # Run OCR
-    result = process_answer_sheet(file_bytes, file.filename, len(questions))
-
-    if result.get("error"):
-        ocr_sub.status = "error"
-        ocr_sub.ocr_error = result["error"]
-        db.commit()
-        raise HTTPException(500, f"OCR failed: {result['error']}")
-
-    ocr_sub.confidence_score = float(result["overall_confidence"])
-    ocr_sub.status = "ocr_done"
-
-    extractions = []
-    for q_data in result["questions"]:
-        idx = q_data["index"]
-        if idx >= len(questions):
-            continue
-        question = questions[idx]
-        raw_text = q_data["text"]
-        corrected_text = correct_ocr_text_with_context(
-            raw_text,
-            question.question_text,
-            question.model_answer,
-            question.required_concepts,
-        )
-        ext_obj = OCRQuestionExtraction(
-            ocr_submission_id=ocr_sub.id,
-            question_id=question.id,
-            extracted_text=raw_text,
-            confidence=float(q_data["confidence"]),
-            corrected_text=corrected_text if corrected_text != raw_text else None,
-            is_corrected=corrected_text != raw_text,
-        )
-        db.add(ext_obj)
-        extractions.append((question, corrected_text, float(q_data["confidence"])))
-
-    db.commit()
-
-    answered_extractions = [e for e in extractions if e[1].strip()]
-    low_confidence = [e for e in answered_extractions if e[2] < MIN_AUTO_EVALUATE_CONFIDENCE]
-    if low_confidence:
-        ocr_sub.status = "needs_review"
-        db.commit()
-        return {
-            "message": "Answer sheet processed. Low-confidence OCR needs teacher review before evaluation.",
-            "pages_processed": result["pages_processed"],
-            "overall_confidence": result["overall_confidence"],
-            "questions_extracted": len(answered_extractions),
-            "low_confidence_questions": len(low_confidence),
-            "needs_review": True,
-            "evaluation_results": [],
-            "ocr_submission_id": ocr_sub.id,
-        }
-
-    # Auto-evaluate only when OCR confidence is acceptable.
-    evaluation_results = []
-    for question, text, conf in extractions:
-        if not text.strip():
-            continue
-
-        sub = db.query(Submission).filter(
-            Submission.question_id == question.id,
-            Submission.student_id == current_user.id,
-        ).first()
-        if sub:
-            sub.answer_text = text
-        else:
-            sub = Submission(
-                student_id=current_user.id,
-                question_id=question.id,
-                answer_text=text,
-            )
-            db.add(sub)
-            db.commit()
-            db.refresh(sub)
-
-        from sentence_transformers import SentenceTransformer
+    def _background_process(ocr_id: int, file_bytes: bytes, filename: str, num_questions: int):
+        db_bg = SessionLocal()
         try:
-            model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+            ocr_obj = db_bg.query(OCRSubmission).filter(OCRSubmission.id == ocr_id).first()
+            if not ocr_obj:
+                return
+
+            # Run OCR
+            try:
+                result = process_answer_sheet(file_bytes, filename, num_questions)
+            except Exception as e:
+                ocr_obj.status = "error"
+                ocr_obj.ocr_error = str(e)
+                db_bg.commit()
+                return
+
+            if result.get("error"):
+                ocr_obj.status = "error"
+                ocr_obj.ocr_error = result["error"]
+                db_bg.commit()
+                return
+
+            ocr_obj.confidence_score = float(result.get("overall_confidence", 0))
+            ocr_obj.status = "ocr_done"
+            db_bg.commit()
+
+            extractions = []
+            questions_bg = db_bg.query(Question).filter(Question.exam_id == ocr_obj.exam_id).order_by(Question.order_index).all()
+            for q_data in result.get("questions", []):
+                idx = q_data.get("index", 0)
+                if idx >= len(questions_bg):
+                    continue
+                question = questions_bg[idx]
+                raw_text = q_data.get("text", "")
+                corrected_text = correct_ocr_text_with_context(
+                    raw_text,
+                    question.question_text,
+                    question.model_answer,
+                    question.required_concepts,
+                )
+                ext_obj = OCRQuestionExtraction(
+                    ocr_submission_id=ocr_obj.id,
+                    question_id=question.id,
+                    extracted_text=raw_text,
+                    confidence=float(q_data.get("confidence", 0)),
+                    corrected_text=corrected_text if corrected_text != raw_text else None,
+                    is_corrected=corrected_text != raw_text,
+                )
+                db_bg.add(ext_obj)
+                extractions.append((question, corrected_text or "", float(q_data.get("confidence", 0))))
+
+            db_bg.commit()
+
+            answered_extractions = [e for e in extractions if e[1].strip()]
+            low_confidence = [e for e in answered_extractions if e[2] < MIN_AUTO_EVALUATE_CONFIDENCE]
+            if low_confidence:
+                ocr_obj.status = "needs_review"
+                db_bg.commit()
+                return
+
+            # Auto-evaluate
+            for question, text, conf in extractions:
+                if not text.strip():
+                    continue
+
+                sub = db_bg.query(Submission).filter(
+                    Submission.question_id == question.id,
+                    Submission.student_id == ocr_obj.student_id,
+                ).first()
+                if sub:
+                    sub.answer_text = text
+                else:
+                    sub = Submission(
+                        student_id=ocr_obj.student_id,
+                        question_id=question.id,
+                        answer_text=text,
+                    )
+                    db_bg.add(sub)
+                    db_bg.commit()
+                    db_bg.refresh(sub)
+
+                from sentence_transformers import SentenceTransformer
+                try:
+                    model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+                except Exception:
+                    model = SentenceTransformer("all-MiniLM-L6-v2")
+
+                concepts = parse_required_concepts(question.required_concepts or "")
+                ev = evaluate_answer(
+                    model_answer=question.model_answer,
+                    student_answer=text,
+                    model=model,
+                    max_marks=question.max_marks,
+                    required_concepts=concepts,
+                )
+                result_row = db_bg.query(EvaluationResult).filter(
+                    EvaluationResult.submission_id == sub.id
+                ).first()
+                if not result_row:
+                    result_row = EvaluationResult(submission_id=sub.id)
+                    db_bg.add(result_row)
+
+                result_row.marks = ev["marks"]
+                result_row.percentage = ev["percentage"]
+                result_row.grade_band = ev["grade_band"]
+                result_row.semantic_score = ev["scores"]["Semantic"]
+                result_row.keyword_score = ev["scores"]["Keyword"]
+                result_row.sentence_score = ev["scores"]["Sentence"]
+                result_row.length_score = ev["scores"]["Length"]
+                result_row.copy_risk = ev["copied_answer_risk"]
+                update_peer_similarity(db_bg, sub, result_row)
+                result_row.covered_keywords = ev["covered_keywords"]
+                result_row.missing_keywords = ev["missing_keywords"]
+                result_row.suggestions = ev["suggestions"]
+
+            ocr_obj.status = "evaluated"
+            db_bg.commit()
+
         except Exception:
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+            try:
+                o = db_bg.query(OCRSubmission).filter(OCRSubmission.id == ocr_id).first()
+                if o:
+                    o.status = "error"
+                    o.ocr_error = traceback.format_exc()
+                    db_bg.commit()
+            finally:
+                pass
+        finally:
+            db_bg.close()
 
-        concepts = parse_required_concepts(question.required_concepts or "")
-        ev = evaluate_answer(
-            model_answer=question.model_answer,
-            student_answer=text,
-            model=model,
-            max_marks=question.max_marks,
-            required_concepts=concepts,
-        )
-        result_row = db.query(EvaluationResult).filter(
-            EvaluationResult.submission_id == sub.id
-        ).first()
-        if not result_row:
-            result_row = EvaluationResult(submission_id=sub.id)
-            db.add(result_row)
-
-        result_row.marks = ev["marks"]
-        result_row.percentage = ev["percentage"]
-        result_row.grade_band = ev["grade_band"]
-        result_row.semantic_score = ev["scores"]["Semantic"]
-        result_row.keyword_score = ev["scores"]["Keyword"]
-        result_row.sentence_score = ev["scores"]["Sentence"]
-        result_row.length_score = ev["scores"]["Length"]
-        result_row.copy_risk = ev["copied_answer_risk"]
-        update_peer_similarity(db, sub, result_row)
-        result_row.covered_keywords = ev["covered_keywords"]
-        result_row.missing_keywords = ev["missing_keywords"]
-        result_row.suggestions = ev["suggestions"]
-        evaluation_results.append({
-            "question_id": question.id,
-            "marks": ev["marks"],
-            "confidence": conf,
-        })
-
-    ocr_sub.status = "evaluated"
-    db.commit()
+    # schedule background processing
+    if background_tasks is not None:
+        background_tasks.add_task(_background_process, ocr_sub.id, file_bytes, file.filename, len(questions))
 
     return {
-        "message": "Answer sheet processed and evaluated",
-        "pages_processed": result["pages_processed"],
-        "overall_confidence": result["overall_confidence"],
-        "questions_extracted": len(answered_extractions),
-        "low_confidence_questions": len(low_confidence),
-        "needs_review": False,
-        "evaluation_results": evaluation_results,
+        "message": "Answer sheet uploaded and queued for processing",
         "ocr_submission_id": ocr_sub.id,
+        "needs_review": None,
     }
 
 
