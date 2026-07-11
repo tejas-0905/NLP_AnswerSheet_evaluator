@@ -84,14 +84,25 @@ def split_wide_page_spreads(pages: list[np.ndarray]) -> list[np.ndarray]:
 
 
 def render_pdf_pages(file_bytes: bytes) -> list[Image.Image]:
+    """Render PDF pages into PIL images.
+
+    Memory protection: render at a capped number of pages and at a bounded
+    scale/dpi to avoid Render OOM for large PDFs.
+    """
+
+    MAX_PAGES = 8
+    RENDER_SCALE = 200 / 72  # lower than 250/72
+
     try:
         import pypdfium2 as pdfium
 
         pdf = pdfium.PdfDocument(file_bytes)
-        pages = []
+        pages: list[Image.Image] = []
         try:
-            for page in pdf:
-                bitmap = page.render(scale=250 / 72)
+            for i, page in enumerate(pdf):
+                if i >= MAX_PAGES:
+                    break
+                bitmap = page.render(scale=RENDER_SCALE)
                 pages.append(bitmap.to_pil())
                 page.close()
         finally:
@@ -101,11 +112,14 @@ def render_pdf_pages(file_bytes: bytes) -> list[Image.Image]:
         try:
             from pdf2image import convert_from_bytes
 
-            return convert_from_bytes(file_bytes, dpi=250)
+            # dpi also affects memory
+            pil_pages = convert_from_bytes(file_bytes, dpi=200, first_page=1, last_page=MAX_PAGES)
+            return pil_pages[:MAX_PAGES]
         except Exception as e:
             raise ValueError(
                 "Could not render PDF. Upload a JPG/PNG/WEBP image, or install Poppler for PDF support."
             ) from e
+
 
 
 def detect_question_regions(image: np.ndarray, num_questions: int) -> list[np.ndarray]:

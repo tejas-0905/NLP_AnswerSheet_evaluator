@@ -212,6 +212,10 @@ async def upload_answer_sheet(
         )
     except Exception as e:
         raise HTTPException(500, f"Could not upload file to storage: {e}") from e
+    finally:
+        # Help memory pressure: release reference as soon as upload is done.
+        file_bytes = b""
+
 
     if existing and existing.image_path:
         try:
@@ -247,21 +251,42 @@ async def upload_answer_sheet(
     db.commit()
     db.refresh(ocr_sub)
 
-    def _background_process(ocr_id: int, file_bytes: bytes, filename: str, num_questions: int):
+    def _background_process(ocr_id: int, filename: str, num_questions: int):
         db_bg = SessionLocal()
         try:
             ocr_obj = db_bg.query(OCRSubmission).filter(OCRSubmission.id == ocr_id).first()
             if not ocr_obj:
                 return
 
+            # Download file inside the job to avoid keeping big bytes in memory
+            # in the web request/background-task setup.
+            try:
+                file_response = download_from_supabase(
+                    settings.SUPABASE_ANSWER_SHEETS_BUCKET,
+                    ocr_obj.image_path,
+                )
+                file_bytes_bg = file_response.content
+            except Exception as e:
+                ocr_obj.status = "error"
+                ocr_obj.ocr_error = f"Could not download uploaded file: {e}"
+                db_bg.commit()
+                return
+
             # Run OCR
             try:
-                result = process_answer_sheet(file_bytes, filename, num_questions)
+                result = process_answer_sheet(file_bytes_bg, filename, num_questions)
             except Exception as e:
                 ocr_obj.status = "error"
                 ocr_obj.ocr_error = str(e)
                 db_bg.commit()
                 return
+            finally:
+                # help GC
+                try:
+                    file_bytes_bg = b""
+                except Exception:
+                    pass
+
 
             if result.get("error"):
                 ocr_obj.status = "error"
@@ -354,10 +379,13 @@ async def upload_answer_sheet(
             db_bg.close()
 
     # schedule background processing
+    # IMPORTANT: do not pass file_bytes into the job; downloading inside the job
+    # reduces peak memory in the web request/worker.
     if background_tasks is not None:
-        background_tasks.add_task(_background_process, ocr_sub.id, file_bytes, file.filename, len(questions))
+        background_tasks.add_task(_background_process, ocr_sub.id, file.filename, len(questions))
     else:
-        _background_process(ocr_sub.id, file_bytes, file.filename, len(questions))
+        _background_process(ocr_sub.id, file.filename, len(questions))
+
 
     return {
         "message": "Answer sheet uploaded and queued for processing",
