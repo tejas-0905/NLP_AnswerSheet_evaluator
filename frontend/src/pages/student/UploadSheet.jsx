@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { uploadAnswerSheet } from "../../api/ocr";
-import { Upload, FileImage, AlertTriangle, CheckCircle, X } from "lucide-react";
+import { getOCRSubmission, uploadAnswerSheet } from "../../api/ocr";
+import { Upload, FileImage, AlertTriangle, CheckCircle, X, Clock3 } from "lucide-react";
 import toast from "react-hot-toast";
+
 
 const BLUE = "#0f2a5f";
 const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
@@ -18,6 +19,11 @@ export default function UploadSheet() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult]       = useState(null);
   const [dragOver, setDragOver]   = useState(false);
+
+  const [ocrSubmissionId, setOcrSubmissionId] = useState(null);
+  const [pollingStatus, setPollingStatus] = useState(null); // processing | ocr_done | needs_review | evaluated | error
+  const [pollingError, setPollingError] = useState(null);
+
 
   const handleFile = (f) => {
     if (!f) return;
@@ -54,8 +60,25 @@ export default function UploadSheet() {
 
     try {
       const res = await uploadAnswerSheet(examId, formData);
+      // backend returns { ocr_submission_id, needs_review, overall_confidence, ... }
       const queued = res.data.needs_review === null || res.data.overall_confidence === undefined;
-      setResult({ ...res.data, queued });
+
+      if (res.data?.ocr_submission_id) {
+        setOcrSubmissionId(res.data.ocr_submission_id);
+        // If backend already finished quickly, we’ll still populate result via polling.
+        if (!queued) {
+          setResult({
+            ...res.data,
+            queued,
+            overall_confidence: res.data?.overall_confidence ?? res.data?.confidence_score,
+            questions_extracted: res.data?.questions_extracted,
+          });
+        }
+      } else {
+        // fallback to old behavior
+        setResult({ ...res.data, queued });
+      }
+
       toast.success(queued ? "Answer sheet uploaded — processing queued." : "Answer sheet evaluated!");
     } catch (err) {
       const detail = err.response?.data?.detail;
@@ -68,8 +91,94 @@ export default function UploadSheet() {
     }
   };
 
-  if (result) {
+  useEffect(() => {
+    if (!ocrSubmissionId) return;
+
+    let cancelled = false;
+    let retryCount = 0;
+
+    const poll = async () => {
+      try {
+        const res = await getOCRSubmission(ocrSubmissionId);
+        if (cancelled) return;
+
+        const status = res.data?.status;
+        setPollingStatus(status || null);
+
+        if (status === "evaluated" || status === "needs_review" || status === "error") {
+          setResult({
+            ...res.data,
+            queued: false,
+            overall_confidence: res.data?.confidence_score,
+            // keep compatibility with existing UI fields when possible
+            questions_extracted: res.data?.extractions?.length || 0,
+            pages_processed: null,
+            low_confidence_questions:
+              res.data?.extractions?.filter((e) => (e.confidence ?? 0) < 55).length || 0,
+          });
+          return;
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setPollingError(e?.message || "Failed to fetch OCR status");
+      } finally {
+        retryCount += 1;
+      }
+
+      // continue polling (2s)
+      if (!cancelled && retryCount < 300) {
+        setTimeout(poll, 2000);
+      }
+    };
+
+    setPollingStatus("processing");
+    poll();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ocrSubmissionId]);
+
+  if (uploading) {
+    // keep existing upload progress UI
+  }
+
+  if (result || ocrSubmissionId) {
+    // if we have no polling result yet, show a processing panel
+    if (!result) {
+      return (
+        <div style={{ maxWidth: 600 }}>
+          <div style={{
+            background: "#fff", border: "1px solid #dfe6f3",
+            borderRadius: 8, padding: "32px", textAlign: "center",
+            boxShadow: CARD_SHADOW,
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: "50%",
+              background: "#eef2ff",
+              margin: "0 auto 16px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Clock3 size={30} color={BLUE} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px", color: "#0f172a" }}>
+              {pollingStatus === "error" ? "Something went wrong" : "Processing OCR"}
+            </h2>
+            <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 24px" }}>
+              {pollingStatus === "error"
+                ? (pollingError || "Unable to process this sheet. Please try again.")
+                : "Hang tight—OCR and evaluation can take a minute depending on the sheet."}
+            </p>
+            <p style={{ fontSize: 12, color: "#9ca3af", margin: 0 }}>
+              This page will update automatically.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     const isQueued = result.queued || result.needs_review === null;
+
 
     return (
       <div style={{ maxWidth: 600 }}>
