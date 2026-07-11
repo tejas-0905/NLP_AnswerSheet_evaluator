@@ -1,6 +1,10 @@
 import os
+import json
+import mimetypes
+import re
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -11,9 +15,10 @@ from api.models.classroom import Classroom
 from api.models.exam import Exam, ExamAccess, Question
 from api.models.submission import Submission, EvaluationResult
 from api.models.ocr import OCRSubmission, OCRQuestionExtraction
+from api.services.model_service import get_sentence_model
 from api.services.ocr_service import correct_ocr_text_with_context, process_answer_sheet
 from api.services.similarity_service import update_peer_similarity
-from api.services.storage_service import upload_to_supabase, delete_from_supabase
+from api.services.storage_service import upload_to_supabase, delete_from_supabase, download_from_supabase
 from evaluator import evaluate_answer, parse_required_concepts
 from api.database import SessionLocal
 import traceback
@@ -21,6 +26,86 @@ import traceback
 router = APIRouter(prefix="/ocr", tags=["OCR"])
 
 MIN_AUTO_EVALUATE_CONFIDENCE = 55
+
+
+def parse_mcq_answer(answer_text: str):
+    def normalize_option(value: str) -> str:
+        value = str(value).strip()
+        return value.upper() if re.fullmatch(r"[A-Da-d]", value) else value
+
+    try:
+        value = json.loads(answer_text)
+        if isinstance(value, list):
+            return [normalize_option(item) for item in value if str(item).strip()]
+        if isinstance(value, str):
+            return [normalize_option(value)] if value.strip() else []
+    except Exception:
+        pass
+
+    text = (answer_text or "").strip()
+    if not text:
+        return []
+
+    options = re.findall(r"\b[A-Da-d]\b", text)
+    if options:
+        return [item.upper() for item in options]
+    return [normalize_option(text)]
+
+
+def evaluate_question_answer(question: Question, answer_text: str, model=None) -> dict:
+    if question.question_type == "mcq":
+        selected_options = sorted(parse_mcq_answer(answer_text))
+        correct_options = sorted(
+            question.correct_options or ([question.correct_option] if question.correct_option else [])
+        )
+        is_correct = selected_options == correct_options
+        marks = question.max_marks if is_correct else 0
+        return {
+            "marks": marks,
+            "percentage": 100 if is_correct else 0,
+            "grade_band": "Excellent" if is_correct else "At risk",
+            "scores": {
+                "Semantic": 1 if is_correct else 0,
+                "Keyword": 1 if is_correct else 0,
+                "Sentence": 1 if is_correct else 0,
+                "Length": 1 if is_correct else 0,
+            },
+            "copied_answer_risk": 0,
+            "covered_keywords": correct_options if is_correct else selected_options,
+            "missing_keywords": [] if is_correct else correct_options,
+            "suggestions": [] if is_correct else ["Review the correct option."],
+        }
+
+    concepts = parse_required_concepts(question.required_concepts or "")
+    return evaluate_answer(
+        model_answer=question.model_answer or "",
+        student_answer=answer_text,
+        model=model,
+        max_marks=question.max_marks,
+        required_concepts=concepts,
+    )
+
+
+def save_evaluation_result(db: Session, submission: Submission, evaluation: dict) -> None:
+    result_row = db.query(EvaluationResult).filter(
+        EvaluationResult.submission_id == submission.id
+    ).first()
+    if not result_row:
+        result_row = EvaluationResult(submission_id=submission.id)
+        db.add(result_row)
+
+    result_row.marks = evaluation["marks"]
+    result_row.percentage = evaluation["percentage"]
+    result_row.grade_band = evaluation["grade_band"]
+    result_row.semantic_score = evaluation["scores"]["Semantic"]
+    result_row.keyword_score = evaluation["scores"]["Keyword"]
+    result_row.sentence_score = evaluation["scores"]["Sentence"]
+    result_row.length_score = evaluation["scores"]["Length"]
+    result_row.copy_risk = evaluation["copied_answer_risk"]
+    result_row.covered_keywords = evaluation["covered_keywords"]
+    result_row.missing_keywords = evaluation["missing_keywords"]
+    result_row.suggestions = evaluation["suggestions"]
+    update_peer_similarity(db, submission, result_row)
 
 
 def teacher_owns_ocr_submission(db: Session, teacher_id: int, ocr_sub: OCRSubmission) -> bool:
@@ -72,6 +157,7 @@ def list_ocr_reviews(
             "confidence_score": float(item.confidence_score or 0),
             "low_confidence_count": low_confidence_count,
             "original_filename": item.original_filename,
+            "has_uploaded_file": bool(item.image_path),
             "created_at": item.created_at,
         })
 
@@ -184,7 +270,15 @@ async def upload_answer_sheet(
                 return
 
             ocr_obj.confidence_score = float(result.get("overall_confidence", 0))
+            ocr_obj.extracted_text = "\n\n".join(
+                str(item.get("text", "")).strip()
+                for item in result.get("questions", [])
+                if str(item.get("text", "")).strip()
+            ) or None
             ocr_obj.status = "ocr_done"
+            db_bg.query(OCRQuestionExtraction).filter(
+                OCRQuestionExtraction.ocr_submission_id == ocr_obj.id
+            ).delete(synchronize_session=False)
             db_bg.commit()
 
             extractions = []
@@ -198,7 +292,7 @@ async def upload_answer_sheet(
                 corrected_text = correct_ocr_text_with_context(
                     raw_text,
                     question.question_text,
-                    question.model_answer,
+                    question.model_answer or "",
                     question.required_concepts,
                 )
                 ext_obj = OCRQuestionExtraction(
@@ -216,12 +310,11 @@ async def upload_answer_sheet(
 
             answered_extractions = [e for e in extractions if e[1].strip()]
             low_confidence = [e for e in answered_extractions if e[2] < MIN_AUTO_EVALUATE_CONFIDENCE]
-            if low_confidence:
-                ocr_obj.status = "needs_review"
-                db_bg.commit()
-                return
 
-            # Auto-evaluate
+            # Auto-evaluate extracted answers against each question's answer key/model answer.
+            needs_nlp = any(question.question_type != "mcq" for question, text, _conf in extractions if text.strip())
+            model = get_sentence_model() if needs_nlp else None
+
             for question, text, conf in extractions:
                 if not text.strip():
                     continue
@@ -242,41 +335,10 @@ async def upload_answer_sheet(
                     db_bg.commit()
                     db_bg.refresh(sub)
 
-                from sentence_transformers import SentenceTransformer
-                try:
-                    model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
-                except Exception:
-                    model = SentenceTransformer("all-MiniLM-L6-v2")
+                ev = evaluate_question_answer(question, text, model=model)
+                save_evaluation_result(db_bg, sub, ev)
 
-                concepts = parse_required_concepts(question.required_concepts or "")
-                ev = evaluate_answer(
-                    model_answer=question.model_answer,
-                    student_answer=text,
-                    model=model,
-                    max_marks=question.max_marks,
-                    required_concepts=concepts,
-                )
-                result_row = db_bg.query(EvaluationResult).filter(
-                    EvaluationResult.submission_id == sub.id
-                ).first()
-                if not result_row:
-                    result_row = EvaluationResult(submission_id=sub.id)
-                    db_bg.add(result_row)
-
-                result_row.marks = ev["marks"]
-                result_row.percentage = ev["percentage"]
-                result_row.grade_band = ev["grade_band"]
-                result_row.semantic_score = ev["scores"]["Semantic"]
-                result_row.keyword_score = ev["scores"]["Keyword"]
-                result_row.sentence_score = ev["scores"]["Sentence"]
-                result_row.length_score = ev["scores"]["Length"]
-                result_row.copy_risk = ev["copied_answer_risk"]
-                update_peer_similarity(db_bg, sub, result_row)
-                result_row.covered_keywords = ev["covered_keywords"]
-                result_row.missing_keywords = ev["missing_keywords"]
-                result_row.suggestions = ev["suggestions"]
-
-            ocr_obj.status = "evaluated"
+            ocr_obj.status = "needs_review" if low_confidence else "evaluated"
             db_bg.commit()
 
         except Exception:
@@ -294,6 +356,8 @@ async def upload_answer_sheet(
     # schedule background processing
     if background_tasks is not None:
         background_tasks.add_task(_background_process, ocr_sub.id, file_bytes, file.filename, len(questions))
+    else:
+        _background_process(ocr_sub.id, file_bytes, file.filename, len(questions))
 
     return {
         "message": "Answer sheet uploaded and queued for processing",
@@ -339,6 +403,7 @@ def get_ocr_submission(
         "status": ocr_sub.status,
         "confidence_score": float(ocr_sub.confidence_score or 0),
         "original_filename": ocr_sub.original_filename,
+        "has_uploaded_file": bool(ocr_sub.image_path),
         "extractions": [
             {
                 "question_id": e.question_id,
@@ -350,6 +415,52 @@ def get_ocr_submission(
             for e in extractions
         ],
     }
+
+
+@router.get("/submission/{ocr_submission_id}/file")
+def get_ocr_submission_file(
+    ocr_submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ocr_sub = db.query(OCRSubmission).filter(
+        OCRSubmission.id == ocr_submission_id
+    ).first()
+    if not ocr_sub:
+        raise HTTPException(404, "Submission not found")
+    if current_user.role == "teacher" and not teacher_owns_ocr_submission(db, current_user.id, ocr_sub):
+        raise HTTPException(403, "Submission not found or not yours")
+    if current_user.role == "student" and ocr_sub.student_id != current_user.id:
+        raise HTTPException(403, "Submission not found")
+    if current_user.role not in {"teacher", "student"}:
+        raise HTTPException(403, "Not allowed")
+    if not ocr_sub.image_path:
+        raise HTTPException(404, "Uploaded file not found")
+
+    try:
+        file_response = download_from_supabase(
+            settings.SUPABASE_ANSWER_SHEETS_BUCKET,
+            ocr_sub.image_path,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Could not load uploaded file: {e}") from e
+
+    filename = ocr_sub.original_filename or os.path.basename(ocr_sub.image_path)
+    media_type = (
+        file_response.headers.get("content-type")
+        or mimetypes.guess_type(filename)[0]
+        or "application/octet-stream"
+    )
+    disposition = "inline" if media_type.startswith("image/") or media_type == "application/pdf" else "attachment"
+    safe_filename = filename.replace('"', "")
+    return Response(
+        content=file_response.content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{safe_filename}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
 
 
 class CorrectionRequest(BaseModel):
@@ -366,6 +477,12 @@ def correct_extraction(
     if current_user.role != "teacher":
         raise HTTPException(403, "Only teachers can correct OCR extractions")
 
+    ocr_sub = db.query(OCRSubmission).filter(
+        OCRSubmission.id == ocr_submission_id
+    ).first()
+    if not ocr_sub or not teacher_owns_ocr_submission(db, current_user.id, ocr_sub):
+        raise HTTPException(403, "Submission not found or not yours")
+
     extraction = db.query(OCRQuestionExtraction).filter(
         OCRQuestionExtraction.ocr_submission_id == ocr_submission_id,
         OCRQuestionExtraction.question_id == payload.question_id,
@@ -373,18 +490,15 @@ def correct_extraction(
     if not extraction:
         raise HTTPException(404, "Extraction not found")
 
-    extraction.corrected_text = payload.corrected_text
-    extraction.is_corrected = True
-
     # Re-evaluate with corrected text
     question = db.query(Question).filter(
         Question.id == payload.question_id
     ).first()
-    ocr_sub = db.query(OCRSubmission).filter(
-        OCRSubmission.id == ocr_submission_id
-    ).first()
-    if not ocr_sub or not teacher_owns_ocr_submission(db, current_user.id, ocr_sub):
-        raise HTTPException(403, "Submission not found or not yours")
+    if not question:
+        raise HTTPException(404, "Question not found")
+
+    extraction.corrected_text = payload.corrected_text
+    extraction.is_corrected = True
 
     sub = db.query(Submission).filter(
         Submission.question_id == payload.question_id,
@@ -403,41 +517,9 @@ def correct_extraction(
         db.commit()
         db.refresh(sub)
 
-    ev_row = db.query(EvaluationResult).filter(
-        EvaluationResult.submission_id == sub.id
-    ).first()
-
-    from sentence_transformers import SentenceTransformer
-    try:
-        model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
-    except Exception:
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    concepts = parse_required_concepts(question.required_concepts or "")
-    ev = evaluate_answer(
-        model_answer=question.model_answer,
-        student_answer=payload.corrected_text,
-        model=model,
-        max_marks=question.max_marks,
-        required_concepts=concepts,
-    )
-
-    if not ev_row:
-        ev_row = EvaluationResult(submission_id=sub.id)
-        db.add(ev_row)
-
-    ev_row.marks = ev["marks"]
-    ev_row.percentage = ev["percentage"]
-    ev_row.grade_band = ev["grade_band"]
-    ev_row.semantic_score = ev["scores"]["Semantic"]
-    ev_row.keyword_score = ev["scores"]["Keyword"]
-    ev_row.sentence_score = ev["scores"]["Sentence"]
-    ev_row.length_score = ev["scores"]["Length"]
-    ev_row.copy_risk = ev["copied_answer_risk"]
-    update_peer_similarity(db, sub, ev_row)
-    ev_row.covered_keywords = ev["covered_keywords"]
-    ev_row.missing_keywords = ev["missing_keywords"]
-    ev_row.suggestions = ev["suggestions"]
+    model = get_sentence_model() if question.question_type != "mcq" else None
+    ev = evaluate_question_answer(question, payload.corrected_text, model=model)
+    save_evaluation_result(db, sub, ev)
 
     remaining_review = db.query(OCRQuestionExtraction).filter(
         OCRQuestionExtraction.ocr_submission_id == ocr_submission_id,

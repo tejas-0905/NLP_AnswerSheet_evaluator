@@ -11,6 +11,9 @@ export const uploadAnswerSheet  = (examId, formData) =>
 export const getOCRSubmission   = (ocrSubmissionId) =>
   API.get(`/ocr/submission/${ocrSubmissionId}`);
 
+export const getOCRSubmissionFile = (ocrSubmissionId) =>
+  API.get(`/ocr/submission/${ocrSubmissionId}/file`, { responseType: "blob" });
+
 export const getOCRReviews      = () =>
   API.get("/ocr/reviews");
 

@@ -15,10 +15,6 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class OTPRequest(BaseModel):
-    user_id: int
-    otp: str
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str

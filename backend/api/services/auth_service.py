@@ -1,5 +1,3 @@
-import random
-import string
 from datetime import datetime, timedelta, timezone
 from jose import jwt
 from passlib.context import CryptContext
@@ -19,8 +17,3 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
-def generate_otp() -> str:
-    return "".join(random.choices(string.digits, k=6))
-
-def otp_expiry() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(minutes=10)

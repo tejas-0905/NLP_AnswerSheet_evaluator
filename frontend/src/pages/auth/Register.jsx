@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { registerUser } from "../../api/auth";
+import { useAuth } from "../../context/useAuth";
 
 const BLUE = "#4361ee";
 
 export default function Register() {
-  const navigate = useNavigate();
+  const { saveUser } = useAuth();
   const [role, setRole]     = useState("student");
   const [form, setForm]     = useState({ full_name: "", email: "", password: "" });
   const [agreed, setAgreed] = useState(false);
@@ -22,7 +23,7 @@ export default function Register() {
     setError(""); setLoading(true);
     try {
       const res = await registerUser({ ...form, role });
-      navigate("/verify-otp", { state: { user_id: res.data.user_id, email: form.email } });
+      saveUser(res.data);
     } catch (err) {
       const detail = err.response?.data?.detail;
       const message = Array.isArray(detail)

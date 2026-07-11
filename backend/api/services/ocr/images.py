@@ -53,6 +53,36 @@ def load_image_bytes(file_bytes: bytes, filename: str) -> list[np.ndarray]:
     return [img]
 
 
+def split_wide_page_spreads(pages: list[np.ndarray]) -> list[np.ndarray]:
+    """Split photographed two-page spreads into left/right pages when there is a clear center gutter."""
+    output = []
+    for image in pages:
+        h, w = image.shape[:2]
+        if w < h * 1.15:
+            output.append(image)
+            continue
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        center = w // 2
+        search_half_width = max(20, w // 12)
+        x1 = max(0, center - search_half_width)
+        x2 = min(w, center + search_half_width)
+        column_scores = gray[:, x1:x2].mean(axis=0)
+        split_x = x1 + int(np.argmax(column_scores))
+
+        left_w = split_x
+        right_w = w - split_x
+        if left_w < w * 0.35 or right_w < w * 0.35:
+            output.append(image)
+            continue
+
+        gutter = max(4, w // 150)
+        output.append(image[:, :max(split_x - gutter, 1)])
+        output.append(image[:, min(split_x + gutter, w - 1):])
+
+    return output
+
+
 def render_pdf_pages(file_bytes: bytes) -> list[Image.Image]:
     try:
         import pypdfium2 as pdfium

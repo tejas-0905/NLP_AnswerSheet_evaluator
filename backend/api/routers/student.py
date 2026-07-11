@@ -8,6 +8,8 @@ from api.models.user import User
 from api.models.classroom import Classroom, ClassroomMember
 from api.models.exam import Exam, ExamAccess, Question
 from api.models.submission import Submission, EvaluationResult
+from api.models.ocr import OCRSubmission
+from api.services.model_service import get_sentence_model
 from api.services.similarity_service import similar_student_name, update_peer_similarity
 from evaluator import evaluate_answer, parse_required_concepts
 
@@ -121,13 +123,19 @@ def get_exams(
             continue
         questions = db.query(Question).filter(Question.exam_id == e.id).all()
         attempted = False
+        ocr_submission = db.query(OCRSubmission).filter(
+            OCRSubmission.exam_id == e.id,
+            OCRSubmission.student_id == current_user.id,
+        ).order_by(OCRSubmission.created_at.desc()).first()
         if questions:
             q_ids = [question.id for question in questions]
             sub = db.query(Submission).filter(
                 Submission.question_id.in_(q_ids),
                 Submission.student_id == current_user.id,
             ).first()
-            attempted = sub is not None
+            attempted = sub is not None or (
+                ocr_submission is not None and ocr_submission.status != "error"
+            )
         result.append({
             "id": e.id,
             "title": e.title,
@@ -136,6 +144,9 @@ def get_exams(
             "question_count": len(questions),
             "total_marks": sum(q.max_marks for q in questions),
             "attempted": attempted,
+            "ocr_submission_id": ocr_submission.id if ocr_submission else None,
+            "ocr_status": ocr_submission.status if ocr_submission else None,
+            "ocr_confidence": float(ocr_submission.confidence_score or 0) if ocr_submission else None,
         })
     return result
 
@@ -204,11 +215,7 @@ def submit_exam(
     )
     model = None
     if needs_nlp:
-        from sentence_transformers import SentenceTransformer
-        try:
-            model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
-        except Exception:
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+        model = get_sentence_model()
 
     results = []
     for item in payload.answers:
@@ -221,14 +228,15 @@ def submit_exam(
             Submission.student_id == current_user.id,
         ).first()
         if existing:
-            continue
-
-        sub = Submission(
-            student_id=current_user.id,
-            question_id=item.question_id,
-            answer_text=item.answer_text,
-        )
-        db.add(sub)
+            sub = existing
+            sub.answer_text = item.answer_text
+        else:
+            sub = Submission(
+                student_id=current_user.id,
+                question_id=item.question_id,
+                answer_text=item.answer_text,
+            )
+            db.add(sub)
         db.commit()
         db.refresh(sub)
 
@@ -263,22 +271,25 @@ def submit_exam(
                 required_concepts=concepts,
             )
 
-        result_row = EvaluationResult(
-            submission_id=sub.id,
-            marks=ev["marks"],
-            percentage=ev["percentage"],
-            grade_band=ev["grade_band"],
-            semantic_score=ev["scores"]["Semantic"],
-            keyword_score=ev["scores"]["Keyword"],
-            sentence_score=ev["scores"]["Sentence"],
-            length_score=ev["scores"]["Length"],
-            copy_risk=ev["copied_answer_risk"],
-            covered_keywords=ev["covered_keywords"],
-            missing_keywords=ev["missing_keywords"],
-            suggestions=ev["suggestions"],
-        )
+        result_row = db.query(EvaluationResult).filter(
+            EvaluationResult.submission_id == sub.id
+        ).first()
+        if not result_row:
+            result_row = EvaluationResult(submission_id=sub.id)
+            db.add(result_row)
+
+        result_row.marks = ev["marks"]
+        result_row.percentage = ev["percentage"]
+        result_row.grade_band = ev["grade_band"]
+        result_row.semantic_score = ev["scores"]["Semantic"]
+        result_row.keyword_score = ev["scores"]["Keyword"]
+        result_row.sentence_score = ev["scores"]["Sentence"]
+        result_row.length_score = ev["scores"]["Length"]
+        result_row.copy_risk = ev["copied_answer_risk"]
+        result_row.covered_keywords = ev["covered_keywords"]
+        result_row.missing_keywords = ev["missing_keywords"]
+        result_row.suggestions = ev["suggestions"]
         update_peer_similarity(db, sub, result_row)
-        db.add(result_row)
         db.commit()
         results.append({"question_id": item.question_id, "marks": ev["marks"]})
 
@@ -303,6 +314,7 @@ def my_results(
     output = []
     total_marks = 0
     total_max = sum(q.max_marks for q in questions) if attempted else 0
+    missing_evaluation_model = None
 
     for q in questions:
         sub = db.query(Submission).filter(
@@ -341,6 +353,58 @@ def my_results(
         ev = db.query(EvaluationResult).filter(
             EvaluationResult.submission_id == sub.id
         ).first()
+        if not ev:
+            if q.question_type == "mcq":
+                selected_options = sorted(parse_mcq_answer(sub.answer_text))
+                correct_options = sorted(q.correct_options or ([q.correct_option] if q.correct_option else []))
+                is_correct = selected_options == correct_options
+                marks = q.max_marks if is_correct else 0
+                result = {
+                    "marks": marks,
+                    "percentage": 100 if is_correct else 0,
+                    "grade_band": "Excellent" if is_correct else "At risk",
+                    "scores": {
+                        "Semantic": 1 if is_correct else 0,
+                        "Keyword": 1 if is_correct else 0,
+                        "Sentence": 1 if is_correct else 0,
+                        "Length": 1 if is_correct else 0,
+                    },
+                    "copied_answer_risk": 0,
+                    "covered_keywords": correct_options if is_correct else selected_options,
+                    "missing_keywords": [] if is_correct else correct_options,
+                    "suggestions": [] if is_correct else ["Review the correct option."],
+                }
+            else:
+                if missing_evaluation_model is None:
+                    missing_evaluation_model = get_sentence_model()
+                concepts = parse_required_concepts(q.required_concepts or "")
+                result = evaluate_answer(
+                    model_answer=q.model_answer or "",
+                    student_answer=sub.answer_text,
+                    model=missing_evaluation_model,
+                    max_marks=q.max_marks,
+                    required_concepts=concepts,
+                )
+
+            ev = EvaluationResult(
+                submission_id=sub.id,
+                marks=result["marks"],
+                percentage=result["percentage"],
+                grade_band=result["grade_band"],
+                semantic_score=result["scores"]["Semantic"],
+                keyword_score=result["scores"]["Keyword"],
+                sentence_score=result["scores"]["Sentence"],
+                length_score=result["scores"]["Length"],
+                copy_risk=result["copied_answer_risk"],
+                covered_keywords=result["covered_keywords"],
+                missing_keywords=result["missing_keywords"],
+                suggestions=result["suggestions"],
+            )
+            update_peer_similarity(db, sub, ev)
+            db.add(ev)
+            db.commit()
+            db.refresh(ev)
+
         if not ev:
             if attempted:
                 output.append({

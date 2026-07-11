@@ -39,11 +39,14 @@ def correct_ocr_text_with_context(
         return text
 
     corrected_tokens = []
+    word_count = 0
+    correction_count = 0
     for token in re.findall(r"[A-Za-z0-9]+|[^A-Za-z0-9]+", text):
         if not re.fullmatch(r"[A-Za-z0-9]+", token):
             corrected_tokens.append(token)
             continue
 
+        word_count += 1
         lower = token.lower()
         if len(lower) < 5 or lower in vocabulary:
             corrected_tokens.append(token)
@@ -59,22 +62,29 @@ def correct_ocr_text_with_context(
                 best_word = expected
                 best_score = score
 
-        if best_word and best_score >= 0.68:
+        if best_word and best_score >= 0.78:
             corrected_tokens.append(best_word)
+            correction_count += 1
         else:
             corrected_tokens.append(token)
+
+    if word_count >= 12 and correction_count / word_count > 0.35:
+        return text
 
     return "".join(corrected_tokens)
 
 def normalize_ocr_text(text: str) -> str:
     text = re.sub(r"!\[[^\]]*\]\([^)]+\)", " ", text or "")
     text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [re.sub(r"[ \t\f\v]+", " ", line).strip() for line in text.split("\n")]
+    text = "\n".join(line for line in lines if line)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
 QUESTION_MARKER_RE = re.compile(
-    r"(?i)(?<![A-Za-z0-9])(?:"
+    r"(?im)(?:^|\n)\s*(?:"
     r"(?:q|que|ques|question|ans|answer)(?:\s*(?:no|number))?\s*[\.:)\-#]?\s*(\d{1,2})(?!\d)"
     r"|(\d{1,2})\s*[\).:\-]\s+(?=[A-Za-z])"
     r")"
@@ -107,4 +117,4 @@ def split_text_by_question_numbers(text: str, num_questions: int) -> list[str] |
             existing = answers[question_index]
             answers[question_index] = f"{existing}\n{answer_text}".strip() if existing else answer_text
 
-    return answers
+    return answers if any(answer.strip() for answer in answers) else None

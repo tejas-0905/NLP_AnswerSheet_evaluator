@@ -60,10 +60,17 @@ def word_tokenize(text):
 
 def sentence_tokenize(text):
     text = text or ""
-    try:
-        return nltk.sent_tokenize(text)
-    except LookupError:
-        return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    text = re.sub(r"(?m)^\s*(?:[-*]|\d+[\).])\s+", "\n", text)
+    text = re.sub(r"\s+(?:[-*]|\d+[\).])\s+", "\n", text)
+    parts = []
+    blocks = [block.strip() for block in re.split(r"[\r\n]+", text) if block.strip()]
+    for block in blocks:
+        try:
+            sentences = nltk.sent_tokenize(block)
+        except LookupError:
+            sentences = re.split(r"(?<=[.!?])\s+", block)
+        parts.extend(sentences)
+    return [part.strip(" \t\r\n.-:*") for part in parts if part.strip(" \t\r\n.-:*")]
 
 
 def preprocess(text):

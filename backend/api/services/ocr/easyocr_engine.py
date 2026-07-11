@@ -16,12 +16,36 @@ def ocr_region(region: np.ndarray) -> tuple[str, float]:
     if not results:
         return "", 0.0
 
-    texts = []
+    sorted_results = sorted(
+        results,
+        key=lambda item: (
+            min(point[1] for point in item[0]),
+            min(point[0] for point in item[0]),
+        ),
+    )
+
+    lines = []
     confidences = []
-    for (_, text, conf) in results:
-        texts.append(text.strip())
+    current_line = []
+    current_y = None
+    for (box, text, conf) in sorted_results:
+        text = text.strip()
+        if not text:
+            continue
+        y_center = sum(point[1] for point in box) / len(box)
+        if current_y is not None and abs(y_center - current_y) > 18:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [text]
+            current_y = y_center
+        else:
+            current_line.append(text)
+            current_y = y_center if current_y is None else (current_y + y_center) / 2
         confidences.append(float(conf))
 
-    combined_text = " ".join(t for t in texts if t)
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    combined_text = "\n".join(lines)
     avg_conf = float(round(sum(confidences) / len(confidences) * 100, 2))
     return combined_text, avg_conf

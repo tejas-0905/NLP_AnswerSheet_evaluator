@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getOCRSubmission, correctExtraction } from "../../api/ocr";
-import { AlertTriangle, CheckCircle, Edit3 } from "lucide-react";
+import { getOCRSubmission, getOCRSubmissionFile, correctExtraction } from "../../api/ocr";
+import { AlertTriangle, CheckCircle, Edit3, ExternalLink, FileText } from "lucide-react";
 import toast from "react-hot-toast";
 
 const BLUE = "#0f2a5f";
@@ -25,6 +25,7 @@ export default function OCRReview() {
   const [data, setData] = useState(null);
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState({});
+  const [openingFile, setOpeningFile] = useState(false);
 
   useEffect(() => {
     getOCRSubmission(ocrSubmissionId).then((response) => {
@@ -60,6 +61,20 @@ export default function OCRReview() {
     }
   };
 
+  const openUploadedSheet = async () => {
+    setOpeningFile(true);
+    try {
+      const response = await getOCRSubmissionFile(ocrSubmissionId);
+      const fileUrl = URL.createObjectURL(response.data);
+      window.open(fileUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Could not open uploaded sheet");
+    } finally {
+      setOpeningFile(false);
+    }
+  };
+
   if (!data) return <p style={{ color: "#64748b", fontSize: 13 }}>Loading OCR review...</p>;
 
   return (
@@ -71,7 +86,7 @@ export default function OCRReview() {
         >
           Back
         </button>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: "#0f172a" }}>
             OCR review panel
           </h1>
@@ -79,6 +94,29 @@ export default function OCRReview() {
             {data.student_name} - {data.exam_title}
           </p>
         </div>
+        {data.has_uploaded_file && (
+          <button
+            type="button"
+            onClick={openUploadedSheet}
+            disabled={openingFile}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              background: openingFile ? "#c7d2fe" : BLUE,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "9px 14px",
+              cursor: openingFile ? "not-allowed" : "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            <ExternalLink size={14} />
+            {openingFile ? "Opening..." : "View uploaded sheet"}
+          </button>
+        )}
       </div>
 
       <div style={{
@@ -90,7 +128,7 @@ export default function OCRReview() {
         {[
           { label: "Overall confidence", value: `${Number(data.confidence_score || 0).toFixed(1)}%` },
           { label: "Questions extracted", value: data.extractions.length },
-          { label: "Original file", value: data.original_filename || "-" },
+          { label: "Original file", value: data.original_filename || "-", icon: FileText },
         ].map((item) => (
           <div key={item.label} style={{
             background: "#fff",

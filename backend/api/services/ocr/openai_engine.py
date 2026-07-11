@@ -31,8 +31,10 @@ def openai_handwriting_ocr(pages: list[np.ndarray], num_questions: int) -> dict 
         "type": "text",
         "text": (
             "You are an OCR engine for handwritten student answer sheets. "
-            "Transcribe the handwritten answers clearly and split them by question number. "
-            "Do not grade. Do not summarize. Preserve the student's wording, but fix only obvious OCR character confusions. "
+            "Transcribe the entire handwritten text and split it by question number. "
+            "Do not grade, shorten, paraphrase, summarize, or replace the student's wording. "
+            "Preserve bullets, numbered points, table contents, headings, and continuation text across pages. "
+            "Fix only obvious OCR character confusions. "
             f"Return JSON only with exactly {num_questions} items: "
             '{"questions":[{"index":0,"text":"...","confidence":95.0}],"overall_confidence":95.0}. '
             "Use zero-based indexes. If an answer is not visible, use an empty string and low confidence."

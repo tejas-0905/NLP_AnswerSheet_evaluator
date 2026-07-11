@@ -41,6 +41,8 @@ def ensure_exam_access_table() -> None:
 
 def ensure_user_settings_columns() -> None:
     run_statements([
+        "DROP TABLE IF EXISTS otp_verifications",
+        "ALTER TABLE users DROP COLUMN IF EXISTS is_verified",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS institution VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT",

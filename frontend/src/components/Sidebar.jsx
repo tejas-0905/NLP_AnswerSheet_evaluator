@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import {
   LayoutDashboard, School, BookOpen,
-  BarChart2, Trophy, Users, LogOut, Settings, FileText
+  BarChart2, Trophy, Users, LogOut, Settings, FileText, ScanText
 } from "lucide-react";
 
 const mainLinks = [
@@ -15,6 +15,7 @@ const mainLinks = [
 
 const insightLinks = [
   { to: "/teacher/results",      icon: BarChart2,       label: "Results"     },
+  { to: "/teacher/ocr-reviews",  icon: ScanText,        label: "Uploaded sheets" },
   { to: "/teacher/leaderboard",  icon: Trophy,          label: "Leaderboard" },
 ];
 

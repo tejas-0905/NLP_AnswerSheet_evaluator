@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getMyClassrooms, getExams } from "../../api/student";
-import { Clock, BookOpen, CheckCircle, Edit3, UploadCloud } from "lucide-react";
+import { Clock, BookOpen, CheckCircle, Edit3, UploadCloud, Loader2, AlertTriangle } from "lucide-react";
 
 const BLUE = "#0f2a5f";
 const CARD_SHADOW = "0 10px 24px rgba(15, 23, 42, 0.04)";
@@ -19,13 +19,44 @@ export default function StudentExams() {
       setClassrooms(r.data);
       if (!selected && r.data.length > 0) setSelected(r.data[0].id);
     });
-  }, [selected]);
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
-    Promise.resolve().then(() => setLoading(true));
+    setLoading(true);
     getExams(selected).then((r) => setExams(r.data)).finally(() => setLoading(false));
   }, [selected]);
+
+  const examState = (exam) => {
+    if (exam.ocr_status === "processing" || exam.ocr_status === "ocr_done") {
+      return {
+        label: "Processing",
+        icon: Loader2,
+        bg: "#eef2ff",
+        color: BLUE,
+        canView: false,
+      };
+    }
+    if (exam.ocr_status === "needs_review") {
+      return {
+        label: "Under review",
+        icon: AlertTriangle,
+        bg: "#fef9c3",
+        color: "#a16207",
+        canView: true,
+      };
+    }
+    if (exam.attempted) {
+      return {
+        label: "Submitted",
+        icon: CheckCircle,
+        bg: "#dcfce7",
+        color: "#16a34a",
+        canView: true,
+      };
+    }
+    return null;
+  };
 
   return (
     <div>
@@ -56,25 +87,28 @@ export default function StudentExams() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {exams.map((exam) => (
+          {exams.map((exam) => {
+            const state = examState(exam);
+            const StatusIcon = state?.icon;
+            return (
             <div key={exam.id} style={{
               background: "#fff", border: "1px solid #dfe6f3",
               borderRadius: 8, padding: "18px 22px",
               display: "flex", alignItems: "center",
               justifyContent: "space-between",
-              opacity: exam.attempted ? 0.75 : 1,
+              opacity: exam.attempted ? 0.82 : 1,
               boxShadow: CARD_SHADOW,
             }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                   <p style={{ fontWeight: 700, fontSize: 15, margin: 0, color: "#0f172a" }}>{exam.title}</p>
-                  {exam.attempted && (
+                  {state && (
                     <span style={{
                       display: "flex", alignItems: "center", gap: 4,
-                      fontSize: 11, color: "#16a34a",
-                      background: "#dcfce7", padding: "2px 8px", borderRadius: 20,
+                      fontSize: 11, color: state.color,
+                      background: state.bg, padding: "2px 8px", borderRadius: 20,
                     }}>
-                      <CheckCircle size={11} /> Submitted
+                      <StatusIcon size={11} /> {state.label}
                     </span>
                   )}
                 </div>
@@ -91,15 +125,18 @@ export default function StudentExams() {
 
               {exam.attempted ? (
                 <button
-                  onClick={() => navigate(`/student/results/${exam.id}`)}
+                  onClick={() => state?.canView && navigate(`/student/results/${exam.id}`)}
+                  disabled={!state?.canView}
                   style={{
-                    background: "#e8eefc", color: BLUE,
+                    background: state?.canView ? "#e8eefc" : "#f1f5f9",
+                    color: state?.canView ? BLUE : "#94a3b8",
                     border: "none", borderRadius: 8,
-                    padding: "8px 16px", cursor: "pointer",
+                    padding: "8px 16px",
+                    cursor: state?.canView ? "pointer" : "not-allowed",
                     fontSize: 13, fontWeight: 600,
                   }}
                 >
-                  View results
+                  {state?.canView ? "View results" : "Processing..."}
                 </button>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -130,7 +167,7 @@ export default function StudentExams() {
                 </div>
               )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>

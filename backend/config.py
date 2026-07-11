@@ -11,11 +11,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     FRONTEND_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    SMTP_HOST: str
-    SMTP_PORT: int
-    SMTP_USER: str
-    SMTP_PASSWORD: str
-
     OPENAI_API_KEY: str | None = None
     OPENAI_OCR_MODEL: str = "gpt-4o-mini"
 

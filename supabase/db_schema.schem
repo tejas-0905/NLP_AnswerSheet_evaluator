@@ -22,19 +22,9 @@ CREATE TABLE IF NOT EXISTS users (
     release_marks_immediately BOOLEAN DEFAULT TRUE,
     password_hash VARCHAR(255) NOT NULL,
     role user_role NOT NULL,
-    is_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
-
--- OTP verifications
-CREATE TABLE IF NOT EXISTS otp_verifications (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    otp_code VARCHAR(6) NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    is_used BOOLEAN DEFAULT FALSE
-);
 
 -- Classrooms
 CREATE TABLE IF NOT EXISTS classrooms (

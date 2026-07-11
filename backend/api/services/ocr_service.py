@@ -16,6 +16,7 @@ from api.services.ocr.images import (
     load_image_bytes,
     preprocess_image,
     render_pdf_pages,
+    split_wide_page_spreads,
 )
 from api.services.ocr.ocrspace_engine import (
     image_to_base64_data_url,
@@ -43,6 +44,7 @@ def process_answer_sheet(
     """Process an uploaded answer sheet and return OCR text per question."""
     try:
         pages = load_image_bytes(file_bytes, filename)
+        pages = split_wide_page_spreads(pages)
     except Exception as e:
         return {"error": str(e), "questions": [], "pages_processed": 0, "overall_confidence": 0}
 
@@ -70,6 +72,38 @@ def process_answer_sheet(
     trocr_result = trocr_handwriting_ocr(pages, num_questions)
     if trocr_result:
         return trocr_result
+
+    page_texts = []
+    page_confidences = []
+    for page in pages:
+        text, confidence = ocr_region(page)
+        if text:
+            page_texts.append(text)
+        if confidence > 0:
+            page_confidences.append(confidence)
+
+    full_text = normalize_ocr_text("\n".join(page_texts))
+    split_answers = split_text_by_question_numbers(full_text, num_questions)
+    if split_answers is not None:
+        confidence = (
+            float(round(sum(page_confidences) / len(page_confidences), 2))
+            if page_confidences
+            else 0.0
+        )
+        return {
+            "pages_processed": len(pages),
+            "questions": [
+                {
+                    "index": idx,
+                    "text": answer,
+                    "confidence": confidence if answer.strip() else 0.0,
+                }
+                for idx, answer in enumerate(split_answers)
+            ],
+            "overall_confidence": confidence,
+            "error": None,
+            "engine": "easyocr_full_page",
+        }
 
     regions = detect_question_regions(full_image, num_questions)
 
